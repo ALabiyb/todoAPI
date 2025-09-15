@@ -1,6 +1,6 @@
 library identifier: 'refactoringsoftcmspipeline@main', retriever: modernSCM([$class: 'GitSCMSource', remote: 'http://192.168.15.85/personal/jenkinssharedlibrary.git', credentialsId: 'LASAID'])
 pipeline {
-    agent none
+    agent {label 'trivy_node'}
 
 	stage('Build Pipeline') {
         steps {
