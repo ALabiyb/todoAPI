@@ -1,11 +1,15 @@
 library identifier: 'refactoringsoftcmspipeline@main', retriever: modernSCM([$class: 'GitSCMSource', remote: 'http://192.168.15.85/personal/jenkinssharedlibrary.git', credentialsId: 'LASAID'])
 pipeline {
-    agent {label 'trivy_node'}
+    agent {
+		label 'trivy_node'
+    }
 
-	stage('Build Pipeline') {
-        steps {
-            script {
-                buildPipeline([
+
+stages {
+		stage('Build Pipeline') {
+			steps {
+				script {
+					buildPipeline([
 				// Required parameters])
 				registry: 'registry.192.168.15.10.nip.io',
 				imageName: 'todoapi',
@@ -43,4 +47,5 @@ pipeline {
 			}
 		}
 	}
+}
 }
