@@ -1,6 +1,8 @@
 // Load the shared library named 'jenkins-shared-lib' so it can be used in the pipeline and use its functions.
 // The library should be configured in Jenkins under Manage Jenkins > Configure System > Global Pipeline Libraries
-@Library('jenkins-shared-lib') _
+//@Library('jenkins-shared-lib') _
+// Load the shared library named 'jenkins-shared-lib' so it can be used in the pipeline and use its functions.
+library identifier: 'jenkinssharedlibrary@main', retriever: modernSCM([$class: 'GitSCMSource', remote: 'http://192.168.15.85/personal/jenkinssharedlibrary.git', credentialsId: 'LASAID'])
 
 pipeline {
 	agent trivy_node // Use any available agent to run the pipeline
@@ -35,8 +37,8 @@ pipeline {
 
 
         // Project Configuration
-        PROJECT_NAME = 'jenkins-sample-test' // Name of the project
-        IMAGE_NAME = 'jenkins-sample-test-app' // Name of the Docker image
+        PROJECT_NAME = 'todoapi' // Name of the project
+        IMAGE_NAME = 'todoapi' // Name of the Docker image
         IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}" // Tag for the Docker image, defaults to build number or 'latest'
     }
 
