@@ -5,7 +5,7 @@
 library identifier: 'jenkinssharedlibrary@main', retriever: modernSCM([$class: 'GitSCMSource', remote: 'http://192.168.15.85/personal/jenkinssharedlibrary.git', credentialsId: 'LASAID'])
 
 pipeline {
-	agent trivy_node // Use any available agent to run the pipeline
+	agent { label 'trivy_node'} // Use any available agent to run the pipeline
 
     parameters {
 		choice(
