@@ -1,5 +1,5 @@
 # Multi-stage build for Spring Boot application
-FROM eclipse-temurin:21-jre-jammy AS builder
+FROM maven:3.9.7-eclipse-temurin-21 AS builder
 
 # Set working directory
 WORKDIR /app
