@@ -51,7 +51,7 @@ pipeline {
                     def gitInfo = commonSteps(
                         buildType: 'auto-detect', // Will be determined later
                         branch: env.BRANCH_NAME ?: 'main', // Default to 'main' if not set
-                        repoUrl: 'http://192.168.15.85/jenkins/jenkins-sample-test.git', // Repository URL
+                        repoUrl: 'http://192.168.15.85/personal/todoapi.git', // Repository URL
                         credentialsId: 'LASAID' // Credentials ID for accessing the repository
                     )
 
