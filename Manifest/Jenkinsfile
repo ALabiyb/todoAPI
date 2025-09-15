@@ -1,0 +1,525 @@
+// Load the shared library named 'jenkins-shared-lib' so it can be used in the pipeline and use its functions.
+// The library should be configured in Jenkins under Manage Jenkins > Configure System > Global Pipeline Libraries
+@Library('jenkins-shared-lib') _
+
+pipeline {
+	agent any // Use any available agent to run the pipeline
+
+    parameters {
+		choice(
+        name: 'BUILD_TYPE',
+        choices: ['auto-detect','appOnly', 'app-and-db'],
+        description: 'Select the type of build to perform. "appOnly" builds the application, while "appAndDb" builds both the application and the database.'
+        )
+        booleanParam(
+        name: 'SKIP_TESTS',
+        defaultValue: false,
+        description: 'Check this box to skip tests during the build process. Useful for faster builds when tests are not required.'
+        )
+        booleanParam(
+        name: 'PUSH_TO_REGISTRY',
+        defaultValue: true,
+        description: 'Check this box to push the built Docker image to the registry. Uncheck to skip pushing the image.'
+        )
+        string(
+        name: 'NOTIFY_EMAIL',
+        defaultValue: 'lsaid@softnet.co.tz',
+        description: 'Email address to send notifications to. Comma-separated for multiple recipients.'
+        )
+    }
+
+    environment {
+		// Register environment variables that can be used throughout the pipeline
+        REGISTRY_URL = 'http://registry.192.168.15.10.nip.io' // Docker registry URL
+        REGISTRY_CREDENTIALS_ID = 'docker-registry-credentials' // Credentials ID for Docker registry
+
+
+        // Project Configuration
+        PROJECT_NAME = 'jenkins-sample-test' // Name of the project
+        IMAGE_NAME = 'jenkins-sample-test-app' // Name of the Docker image
+        IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}" // Tag for the Docker image, defaults to build number or 'latest'
+    }
+
+    stages {
+		stage('Send Start Pipeline Notification') {
+			steps {
+				script {
+					// Call the commonSteps function from the shared library
+                    // and pass the required parameters to it.
+                    def gitInfo = commonSteps(
+                        buildType: 'auto-detect', // Will be determined later
+                        branch: env.BRANCH_NAME ?: 'main', // Default to 'main' if not set
+                        repoUrl: 'http://192.168.15.85/jenkins/jenkins-sample-test.git', // Repository URL
+                        credentialsId: 'LASAID' // Credentials ID for accessing the repository
+                    )
+
+                    // Print the commit message from the gitInfo map to the console
+                    echo "Git Info: ${gitInfo}"
+
+                    def triggerBy = detectBuildTrigger()
+
+                    // Call the notify function from the shared library to send a notification
+                    notify([
+                        subject: "Pipeline Job Started: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                        recipients: "lsaid@softnet.co.tz",
+                        template: "start.html", // Template for the notification email
+                        data: [
+                            JOB_NAME: env.JOB_NAME, // Job name
+                            BUILD_NUMBER: env.BUILD_NUMBER, // Build number
+                            BRANCH: env.BRANCH_NAME ?: "main", // Branch name, default to 'main' if not set
+                            BUILD_URL: env.BUILD_URL, // URL to the build
+                            TRIGGERED_BY: triggerBy, // Who triggered the build
+                            BUILD_STATUS: "STARTED", // Status of the build
+                            GIT_COMMIT: gitInfo?.message ?: "No commit info", // Commit message
+                            GIT_AUTHOR: gitInfo?.author ?: "Unknown" // Author of the commit
+                        ]
+                    ])
+
+                    // Store Git information in environment variables for later stages
+                    env.GIT_MESSAGE = gitInfo?.message ?: "No commit info"
+                    env.GIT_AUTHOR = gitInfo?.author ?: "Unknown"
+                }
+            }
+        }
+
+        stage('Detect Build Type') {
+			steps {
+				script {
+					def buildType
+                    def detectionMethod
+
+                    echo "Build type: ${params.BUILD_TYPE}"
+                    echo "Detection method: ${detectionMethod}"
+
+                    def triggeredBy = detectBuildTrigger()
+
+                    // Check how te build was triggered
+                    if (triggeredBy.contains('GitLab') || triggeredBy.contains('SCM Trigger') || triggeredBy.contains('SCM')) {
+						// Build triggered by Git push - use auto-detection
+                        echo "=== 🔄 Build triggered by Git push/SCM - using auto-detection ==="
+
+                        // Check commit message first for build hint
+                        def commitBuildType = detectBuildTypeFromCommit(env.GIT_MESSAGE)
+                        if (commitBuildType) {
+							buildType = commitBuildType
+                            detectionMethod = "commint-message"
+                            echo "=== 📝 Build type detected from commit message: ${buildType} ==="
+                        } else {
+							// Fallback to file structure detection
+                            buildType = detectBuildTypeFromFiles()
+                            detectionMethod = "file-structure"
+                            echo "=== 📁 Build type detected from file structure: ${buildType} ==="
+                        }
+                    } else {
+						// Build triggered manually or by other means - respect parameter
+                        echo "=== 👤 Build triggered manually - checking parameters ==="
+
+                        if (params.BUILD_TYPE != 'auto-detect') {
+							// Manual overide from parameters
+                            buildType = params.BUILD_TYPE
+                            detectionMethod = "manual-parameter"
+                            echo "=== 📋 Build type manually set via parameter: ${buildType} ==="
+
+                            // Check commit message for first for build hint
+                            def commitBuildType = detectBuildTypeFromCommit(env.GIT_MESSAGE)
+                            if (commitBuildType) {
+								buildType = commitBuildType
+                                detectionMethod = "commint-message"
+                                echo "=== 📝 Build type detected from commit message: ${buildType} ==="
+                            } else {
+								// Fallback to file structure detection
+                                buildType = detectBuildTypeFromFiles()
+                                detectionMethod = "file-structure"
+                                echo "=== 📁 Build type detected from file structure: ${buildType} ==="
+                            }
+                        } else {
+							// 🎯 THIS IS WHERE 'app-only' or 'app-and-db' CHOICES ARE HANDLED
+                            // User explicitly chose a specific build type (not auto-detect)
+                            buildType = params.BUILD_TYPE  // Direct assignment: 'app-only' or 'app-and-db'
+                            detectionMethod = "manual-parameter"
+                            echo "=== 📋 Build type manually set via parameter: ${buildType} ==="
+                        }
+                    }
+
+                    //if (params.BUILD_TYPE != 'auto-detect') {
+                    //    // Manual overide from parameters
+                    //    buildType = params.BUILD_TYPE
+                    //    detectionMethod = "manual-parameter"
+                    //    echo "=== 📋 Build type manually set via parameter: ${buildType} ==="
+                    //} else {
+                    //    // Check commit message for first for build hint
+                    //    def commitBuildType = detectBuildTypeFromCommit(env.GIT_MESSAGE)
+                    //    if (commitBuildType) {
+                    //        buildType = commitBuildType
+                    //        detectionMethod = "commint-message"
+                    //        echo "=== 📝 Build type detected from commit message: ${buildType} ==="
+                    //    } else {
+                    //        // Fallback to file structure detection
+                    //        buildType = detectBuildTypeFromFiles()
+                    //        detectionMethod = "file-structure"
+                    //        echo "=== 📁 Build type detected from file structure: ${buildType} ==="
+                    //    }
+                    //}
+                    // Store the detected build type in an environment variable for later stages
+                    env.BUILD_TYPE = buildType
+                    env.DETECTION_METHOD = detectionMethod
+                    echo "✅ Final build type: ${buildType} (detected via: ${detectionMethod})"
+
+                    //// Send update notification about detected/selected build type
+                    //notify([
+                    //    subject: "🔍 Build Type Selected: ${buildType.toUpperCase()}",
+                    //    recipients: params.NOTIFY_EMAIL,
+                    //    templateName: "start.html",
+                    //    data: [
+                    //        JOB_NAME: env.JOB_NAME,
+                    //        BUILD_NUMBER: env.BUILD_NUMBER,
+                    //        BRANCH: env.BRANCH_NAME ?: "main",
+                    //        BUILD_URL: env.BUILD_URL,
+                    //        TRIGGERED_BY: detectBuildTrigger(),
+                    //        BUILD_STATUS: "TYPE_SELECTED",
+                    //        BUILD_TYPE: buildType.toUpperCase(),
+                    //        DETECTION_METHOD: detectionMethod,
+                    //        GIT_AUTHOR: env.GIT_AUTHOR,
+                    //        GIT_COMMIT: env.GIT_MESSAGE
+                    //    ]
+                    //])
+                }
+            }
+        }
+
+        stage('Manual Confirmation') {
+			// This stage only runs for certain conditions
+            when {
+				anyOf {
+					// Run if triggered manually and no override specified
+                    allOf {
+						// Only when BUILD_TYPE parameter was auto-detect
+                        expression { params.BUILD_TYPE == 'auto-detect' }
+                        // And detection method was file-structure (less reliable)
+                        expression { env.DETECTION_METHOD == 'file-structure' }
+                        // And it's a manual build (not SCM triggered)
+                        expression {
+							def trigger = env.TRIGGERED_BY ?: "Unknown"
+                            return !trigger.contains("GitLab") &&
+                           !trigger.contains("SCM") &&
+                           trigger != "SCM Trigger"
+                        }
+                    }
+                }
+            }
+            steps {
+				script {
+					echo "🤔 Requesting manual confirmation for build type..."
+
+                    // Send notification asking for confirmation
+                    notify([
+                        subject: "⏳ Build Type Confirmation Needed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                        recipients: params.NOTIFY_EMAIL,
+                        templateName: "start.html",
+                        data: [
+                            JOB_NAME: env.JOB_NAME,
+                            BUILD_NUMBER: env.BUILD_NUMBER,
+                            BUILD_STATUS: "WAITING_CONFIRMATION",
+                            BUILD_TYPE: env.BUILD_TYPE.toUpperCase(),
+                            BUILD_URL: env.BUILD_URL
+                        ]
+                    ])
+
+                    // Manual input with timeout
+                    timeout(time: 5, unit: 'MINUTES') {
+						def userChoice = input(
+                            message: 'Confirm or change the build type:',
+                            parameters: [
+                                choice(
+                                    name: 'CONFIRMED_BUILD_TYPE',
+                                    choices: ['app-only', 'app-and-db'],
+                                    description: "Detected: ${env.BUILD_TYPE}. Choose the correct build type:"
+                                )
+                            ],
+                            submitterParameter: 'CONFIRMER'
+                        )
+
+                        env.BUILD_TYPE = userChoice
+                        env.DETECTION_METHOD = "manual-confirmation"
+                        env.CONFIRMED_BY = env.CONFIRMER
+
+                        echo "✅ Build type confirmed by ${env.CONFIRMER}: ${env.BUILD_TYPE}"
+                    }
+                }
+            }
+        }
+
+        stage('Build Application') {
+			steps {
+				script {
+					echo "=== Building Application ==="
+                    echo "Git Author: ${env.GIT_AUTHOR}"
+                    echo "Git Commit Message: ${env.GIT_MESSAGE}"
+                    echo "Build Type: ${env.BUILD_TYPE}"
+
+                    // Call different build functions based on the detected/selected build type
+                    def buildResult = env.BUILD_TYPE.toLowerCase()
+
+                    try {
+						switch(buildResult) {
+						case 'app-and-db':
+                                echo "Starting app-and-db build..."
+                                // Call the buildAppAndDb function from the shared library
+                                buildResult = buildAppandDb(
+                                    imageName: env.IMAGE_NAME,
+                                    imageTag: env.IMAGE_TAG,
+                                    dockerComposePath: 'docker-compose.yml',
+                                    buildContext: '.',
+                                    dockerRegistry: env.REGISTRY_URL,
+                                    registryCredentials: env.REGISTRY_CREDENTIALS_ID,
+                                    buildArgs: [
+                                        'GIT_COMMIT': env.GIT_MESSAGE,
+                                        'GIT_AUTHOR': env.GIT_AUTHOR
+                                    ],
+                                    pushToRegistry: params.PUSH_TO_REGISTRY,
+                                    removeAfterPush: true
+                                )
+                                break
+                            case 'app-only':
+                                echo "Starting app-only build..."
+                                // Call the buildAppOnly function from the shared library
+                                buildResult = buildAppOnly(
+                                    imageName: env.IMAGE_NAME,
+                                    imageTag: env.IMAGE_TAG,
+                                    dockerfilePath: 'Dockerfile',
+                                    buildContext: '.',
+                                    dockerRegistry: env.REGISTRY_URL,
+                                    registryCredentials: env.REGISTRY_CREDENTIALS_ID,
+                                    buildArgs: [
+                                        'GIT_COMMIT': env.GIT_MESSAGE,
+                                        'GIT_AUTHOR': env.GIT_AUTHOR
+                                    ],
+                                    pushToRegistry: params.PUSH_TO_REGISTRY,
+                                    removeAfterPush: true
+                                )
+                                break
+                            default:
+                                error "Unknown build type: ${env.BUILD_TYPE}"
+                        }
+                    } catch (Exception e) {
+						echo "❌ Build failed: ${e.getMessage()}"
+                        error "Build process terminated due to failure."
+                        notify([
+                            subject: "❌ Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                            recipients: params.NOTIFY_EMAIL,
+                            template: "start.html",
+                            data: [
+                                JOB_NAME: env.JOB_NAME,
+                                BUILD_NUMBER: env.BUILD_NUMBER,
+                                BRANCH: env.BRANCH_NAME ?: "main",
+                                BUILD_URL: env.BUILD_URL,
+                                TRIGGERED_BY: detectBuildTrigger(),
+                                BUILD_STATUS: "FAILED",
+                                BUILD_TYPE: env.BUILD_TYPE.toUpperCase(),
+                                GIT_AUTHOR: env.GIT_AUTHOR,
+                                GIT_COMMIT: env.GIT_MESSAGE,
+                                ERROR_MESSAGE: e.getMessage()
+                            ]
+                        ])
+                    }
+                }
+            }
+        }
+
+        //stage('Fetching Git Information and Sending Started Email Notififcation') { // Define a stage named 'Test Common steps'
+        //    // This stage will execute the common steps defined in the shared library
+        //    // The common steps function is called with parameters for build type, branch, repo URL,
+        //    // and credentials ID to fetch the latest commit information from the specified repository.
+        //    steps {
+        //        script {
+        //            // Call the commonSteps function from the shared library
+        //            // and pass the required parameters to it.
+        //            // The function is expected to return a map containing git information.
+        //            // The returned map is stored in the variable gitInfo.
+        //            // The commit message is then printed to the console.
+        //            def gitInfo = commonSteps(
+        //            buildType: 'appOnly',
+        //            branch: 'main',
+        //            repoUrl: 'http://192.168.15.85/jenkins/jenkins-sample-test.git',
+        //            credentialsId: 'LASAID'
+        //            )
+        //            // Print the commit message from the gitInfo map to the console
+        //            echo "Git Info: ${gitInfo}"
+        //
+        //            // Detect who/what triggered the build without importing hudson.* classes
+        //            def triggeredBy = "Unknown"
+        //
+        //            // This returns a list of cause maps
+        //            def causes = currentBuild.getBuildCauses()
+        //
+        //            if (causes) {
+        //                def cause = causes[0]
+        //                if (cause.shortDescription.contains("GitLab")) {
+        //                   triggeredBy = cause.shortDescription
+        //                } else if (cause.userName) {
+        //                    triggeredBy = cause.userName
+        //                } else if (cause.shortDescription.toLowerCase().contains("scm change")) {
+        //                    triggeredBy = "SCM Trigger"
+        //                } else {
+        //                    triggeredBy = cause.shortDescription
+        //                }
+        //            }
+        //
+        //            // Call the notify function from the shared library to send a notification
+        //            notify([
+        //                subject: "Pipeline Job Started: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+        //                recipients: "lsaid@softnet.co.tz",
+        //                template: "start.html",
+        //                data: [
+        //                    JOB_NAME: env.JOB_NAME,
+        //                    BUILD_NUMBER: env.BUILD_NUMBER,
+        //                    BRANCH: env.BRANCH_NAME ?: "main",
+        //                    BUILD_URL: env.BUILD_URL,
+        //                    TRIGGERED_BY: triggeredBy,
+        //                    BUILD_STATUS: "STARTED",
+        //                    GIT_COMMIT: gitInfo?.message ?: "No commit info",
+        //                    GIT_AUTHOR: gitInfo?.author ?: "Unknown"
+        //                ]
+        //            ])
+        //        }
+        //    }
+        //}
+    }
+}
+
+/**
+ * Detect build trigger source
+ */
+
+def detectBuildTrigger() {
+	// Detect who/what triggered the build without importing hudson.* classes
+    def triggeredBy = "Unknown"
+
+    // This returns a list of cause maps
+    def causes = currentBuild.getBuildCauses()
+
+    if (causes) {
+		def cause = causes[0]
+        if (cause.shortDescription.contains("GitLab")) {
+			triggeredBy = cause.shortDescription
+        } else if (cause.userName) {
+			triggeredBy = cause.userName
+        } else if (cause.shortDescription.toLowerCase().contains("scm change")) {
+			triggeredBy = "SCM Trigger"
+        } else {
+			triggeredBy = cause.shortDescription
+        }
+    }
+
+    return triggeredBy
+}
+
+/**
+ * Detect build type from commit message
+ * Developers can include hints in their commit messages
+ */
+def detectBuildTypeFromCommit(String commitMessage) {
+	if (!commitMessage) return null
+
+    def message = commitMessage.toLowerCase()
+
+    // Look for explicit build type indicators in commit message
+    if (message.contains('[app-only]') || message.contains('#app-only')) {
+		return 'app-only'
+    }
+
+    if (message.contains('[app-and-db]') || message.contains('#app-and-db') ||
+        message.contains('[with-db]') || message.contains('#with-db')) {
+		return 'app-and-db'
+    }
+
+    // Look for keywords that suggest database changes
+    def dbKeywords = ['database', 'migration', 'schema', 'db-', 'postgres', 'mysql', 'mongo']
+    if (dbKeywords.any { keyword -> message.contains(keyword) }) {
+		return 'app-and-db'
+    }
+
+    // Look for keywords that suggest app-only changes
+    def appOnlyKeywords = ['frontend', 'ui-', 'styling', 'hotfix', 'bugfix', 'docs']
+    if (appOnlyKeywords.any { keyword -> message.contains(keyword) }) {
+		return 'app-only'
+    }
+
+    return null // No clear indication
+}
+
+
+/**
+ * Auto-detect build type based on project structure
+ */
+def detectBuildTypeFromFiles() {
+	def buildType = "app-only" // default
+
+    try {
+		// Check if docker-compose.yml exists
+        def composeExists = sh(script: 'test -f docker-compose.yml', returnStatus: true) == 0
+        def composeYmlExists = sh(script: 'test -f docker-compose.yaml', returnStatus: true) == 0
+
+        if (composeExists || composeYmlExists) {
+			echo "Found Docker Compose file, checking for database services..."
+
+            // Check if compose file contains database services
+            def composeFile = composeExists ? 'docker-compose.yml' : 'docker-compose.yaml'
+            def hasDatabase = sh(
+                script: """
+                    grep -iE '(postgres|mysql|mongodb|redis|database)' ${composeFile} ||
+                    grep -iE 'image:.*\\/(postgres|mysql|mongo|redis)' ${composeFile}
+                """,
+                returnStatus: true
+            ) == 0
+
+            if (hasDatabase) {
+				buildType = "app-and-db"
+                echo "Detected database services in compose file"
+            } else {
+				echo "Compose file found but no database services detected"
+            }
+        } else {
+			// Check if Dockerfile exists
+            def dockerfileExists = sh(script: 'test -f Dockerfile', returnStatus: true) == 0
+
+            if (dockerfileExists) {
+				echo "Found Dockerfile, using single application build"
+                buildType = "app-only"
+            } else {
+				echo "Warning: No Dockerfile or Docker Compose file found!"
+                buildType = "app-only" // fallback
+            }
+        }
+
+    } catch (Exception e) {
+		echo "Error detecting build type: ${e.getMessage()}"
+        echo "Falling back to app-only build"
+        buildType = "app-only"
+    }
+
+    return buildType
+}
+
+/**
+ * Determine if build type should be confirmed manually
+ */
+def shouldConfirmBuildType() {
+	// Add logic to determine when manual confirmation is needed
+    // For example, if this is the first build of a branch, or if
+    // the detected type differs from previous builds
+
+    try {
+		// Check if this is the first build
+        if (env.BUILD_NUMBER == '1') {
+			return true
+        }
+
+        // You could store the last build type and compare
+        // This is a simplified example
+        return false
+
+    } catch (Exception e) {
+		return false
+    }
+}
