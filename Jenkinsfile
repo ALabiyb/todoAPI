@@ -16,7 +16,7 @@ stages {
 				imageName: 'todoapi',
 				gitRepo: 'http://192.168.15.85/personal/todoapi.git',
 				appGitCredId: 'git-credentials-id',
-				registryCredentials: 'registry-credentials-id',
+				registryCredentials: 'LASAID',
 				deploymentGitCredId: 'deployment-git-credentials-id',
 				manifestPath: 'manifests',
 
