@@ -1,4 +1,5 @@
-library identifier: 'refactoringsoftcmspipeline@main', retriever: modernSCM([$class: 'GitSCMSource', remote: 'http://192.168.15.85/personal/jenkinssharedlibrary.git', credentialsId: 'LASAID'])
+library identifier: 'refactoringsoftcmspipeline@main', retriever: modernSCM([$class: 'GitSCMSource', remote: 'http://192.168.15.85/personal/refactoringsoftcmspipeline.git', credentialsId: 'LASAID'])
+
 pipeline {
     agent {
 		label 'trivy_node'
