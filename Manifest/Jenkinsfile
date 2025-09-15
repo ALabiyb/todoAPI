@@ -3,7 +3,7 @@
 @Library('jenkins-shared-lib') _
 
 pipeline {
-	agent any // Use any available agent to run the pipeline
+	agent trivy_node // Use any available agent to run the pipeline
 
     parameters {
 		choice(
