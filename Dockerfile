@@ -41,3 +41,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 ENTRYPOINT ["java", "-jar", "app.jar"]
 
 # End of Dockerfile
+# To build the image, use:
+# docker build -t my-spring-boot-app .
