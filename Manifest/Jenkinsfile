@@ -66,7 +66,7 @@ pipeline {
 						// Get list of changes files in this commit
 						def gitDiff = sh(
 							//script: 'git diff --name-only HEAD~1 HEAD || git diff --name-only --cached',
-							script: 'git rev-parse --verif HEAD~1 >/dev/null 2>&1 && git diff --name-only HEAD~1 HEAD || git diff --name-only --cached || echo "First Commit"',
+							script: 'git rev-parse --verify HEAD~1 >/dev/null 2>&1 && git diff --name-only HEAD~1 HEAD || git diff --name-only --cached || echo "First Commit"',
 							returnStdout: true
 						).trim()
 
