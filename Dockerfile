@@ -45,3 +45,4 @@ ENTRYPOINT ["java", "-jar", "app.jar"]
 # docker build -t my-spring-boot-app .
 # To run the Docker container, use:
 # docker run -p 8080:8080 my-spring-boot-app
+# Make sure to have the actuator dependency in your pom.xml for health checks
