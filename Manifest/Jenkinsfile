@@ -116,3 +116,26 @@ pipeline {
 		}
 	}
 }
+
+/**
+ * Detect build trigger source
+ */
+def detectBuildTrigger() {
+	def triggeredBy = "Unknown"
+    def causes = currentBuild.getBuildCauses()
+
+    if (causes) {
+		def cause = causes[0]
+        if (cause.shortDescription.contains("GitLab")) {
+			triggeredBy = cause.shortDescription
+        } else if (cause.userName) {
+			triggeredBy = cause.userName
+        } else if (cause.shortDescription.toLowerCase().contains("scm change")) {
+			triggeredBy = "SCM Trigger"
+        } else {
+			triggeredBy = cause.shortDescription
+        }
+    }
+
+    return triggeredBy
+}
