@@ -62,22 +62,92 @@ pipeline {
 					def changedFiles = []
 					def changeTypes = [:]
 
-					try {
-						// Get list of changes files in this commit
-						def gitDiff = sh(
-							//script: 'git diff --name-only HEAD~1 HEAD || git diff --name-only --cached',
-							script: 'git rev-parse --verify HEAD~1 >/dev/null 2>&1 && git diff --name-only HEAD~1 HEAD || git diff --name-only --cached || echo "First Commit"',
-							returnStdout: true
-						).trim()
+					//try {
+					//	// Get list of changes files in this commit
+					//	def gitDiff = sh(
+					//		//script: 'git diff --name-only HEAD~1 HEAD || git diff --name-only --cached',
+					//		script: 'git rev-parse --verify HEAD~1 >/dev/null 2>&1 && git diff --name-only HEAD~1 HEAD || git diff --name-only --cached || echo "First Commit"',
+					//		returnStdout: true
+					//	).trim()
+					//
+					//	if (gitDiff) {
+					//		changedFiles = gitDiff.split('\n').toList()
+					//		echo "Changed files: ${changedFiles}"
+					//
+					//		// Categorize changes
+					//		changedFiles.each { file ->
+					//			def fileLower = file.toLowerCase()
+					//			if (fileLower.contains('dockerfile') || fileLower.contains('docker-compose')) {
+					//			changeTypes['docker'] = true
+                    //            } else if (fileLower.endsWith('.sql') || fileLower.contains('migration') || fileLower.contains('schema')) {
+					//			changeTypes['database'] = true
+                    //            } else if (fileLower.contains('src/') || fileLower.endsWith('.java') || fileLower.endsWith('.js') || fileLower.endsWith('.py')) {
+					//			changeTypes['application'] = true
+                    //            } else if (fileLower.contains('test') || fileLower.endsWith('.test.')) {
+					//			changeTypes['tests'] = true
+                    //            } else if (fileLower.contains('config') || fileLower.endsWith('.properties') || fileLower.endsWith('.yml') || fileLower.endsWith('.yaml')) {
+					//			changeTypes['configuration'] = true
+                    //            } else if (fileLower.endsWith('.md') || fileLower.contains('readme') || fileLower.contains('doc')) {
+					//			changeTypes['documentation'] = true
+                    //            }
+					//		}
+					//	} else {
+					//		echo "No changes detected in the last commit."
+					//		changedFiles = ["No changes detected"]
+					//		changeTypes['none'] = true // Indicate no changes
+					//	}
+					//} catch (Exception e) {
+					//	echo "Error detecting changes: ${e.getMessage()}"
+					//	echo "Proceeding with default build steps."
+					//	changedFiles = ["Error detecting changes"]
+					//	changeTypes['error'] = true // Indicate error in detection
+					//}
+					//
+					//// Store change types in environment variables for later stages
+					//env.CHANGE_TYPES = changeTypes.keySet().join(',')
+					//env.CHANGED_FILES = changedFiles.join('; ')
+					//echo "=== Change Analysis Results ==="
+                    //echo "Changed files: ${env.CHANGED_FILES}"
+                    //echo "Change categories: ${env.CHANGE_TYPES}"
+                    //echo "Git Author: ${env.GIT_AUTHOR}"
+                    //echo "Git Commit Message: ${env.GIT_MESSAGE}"
+                    try {
+						// Try different methods to get changed files
+                        def gitDiff = ""
 
-						if (gitDiff) {
-							changedFiles = gitDiff.split('\n').toList()
-							echo "Changed files: ${changedFiles}"
+                        // Method 1: Try to get changes from the last commit
+                        def diffStatus = sh(script: 'git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "FAILED"', returnStdout: true).trim()
 
-							// Categorize changes
-							changedFiles.each { file ->
-								def fileLower = file.toLowerCase()
-								if (fileLower.contains('dockerfile') || fileLower.contains('docker-compose')) {
+                        if (diffStatus != "FAILED" && diffStatus != "") {
+							gitDiff = diffStatus
+                            echo "Got changes using HEAD~1 comparison"
+                        } else {
+							// Method 2: Try to get staged changes
+                            diffStatus = sh(script: 'git diff --name-only --cached 2>/dev/null || echo "FAILED"', returnStdout: true).trim()
+
+                            if (diffStatus != "FAILED" && diffStatus != "") {
+								gitDiff = diffStatus
+                                echo "Got changes using staged files"
+                            } else {
+								// Method 3: Get all files in the repository (for first commit or shallow clone)
+                                diffStatus = sh(script: 'git ls-files 2>/dev/null || echo "FAILED"', returnStdout: true).trim()
+
+                                if (diffStatus != "FAILED" && diffStatus != "") {
+									gitDiff = diffStatus
+                                    echo "Using all files in repository (likely first commit or shallow clone)"
+                                }
+                            }
+                        }
+
+                        if (gitDiff && gitDiff != "FAILED") {
+							changedFiles = gitDiff.split('\n').findAll { it.trim() } // Remove empty lines
+                            echo "Changed files: ${changedFiles}"
+
+                            // Categorize changes
+                            changedFiles.each { file ->
+                                def fileLower = file.toLowerCase()
+
+                                if (fileLower.contains('dockerfile') || fileLower.contains('docker-compose')) {
 								changeTypes['docker'] = true
                                 } else if (fileLower.endsWith('.sql') || fileLower.contains('migration') || fileLower.contains('schema')) {
 								changeTypes['database'] = true
@@ -89,24 +159,34 @@ pipeline {
 								changeTypes['configuration'] = true
                                 } else if (fileLower.endsWith('.md') || fileLower.contains('readme') || fileLower.contains('doc')) {
 								changeTypes['documentation'] = true
+                                } else {
+								changeTypes['other'] = true
                                 }
-							}
-						} else {
-							echo "No changes detected in the last commit."
-							changedFiles = ["No changes detected"]
-							changeTypes['none'] = true // Indicate no changes
-						}
-					} catch (Exception e) {
-						echo "Error detecting changes: ${e.getMessage()}"
-						echo "Proceeding with default build steps."
-						changedFiles = ["Error detecting changes"]
-						changeTypes['error'] = true // Indicate error in detection
-					}
+                            }
 
-					// Store change types in environment variables for later stages
-					env.CHANGE_TYPES = changeTypes.keySet().join(',')
-					env.CHANGED_FILES = changedFiles.join('; ')
-					echo "=== Change Analysis Results ==="
+                        } else {
+							echo "No file changes detected or unable to determine changes"
+                            changedFiles = ["Unable to detect changes"]
+                            changeTypes['application'] = true // Default assumption
+                        }
+
+                    } catch (Exception e) {
+						echo "Error detecting changes: ${e.getMessage()}"
+                        echo "Proceeding with default assumptions"
+                        changedFiles = ["Error detecting changes: ${e.getMessage()}"]
+                        changeTypes['application'] = true
+                    }
+
+                    // Ensure changeTypes is never empty
+                    if (!changeTypes) {
+						changeTypes['application'] = true
+                    }
+
+                    // Store change information
+                    env.CHANGED_FILES = changedFiles.join(',')
+                    env.CHANGE_TYPES = changeTypes.keySet().join(',')
+
+                    echo "=== Change Analysis Results ==="
                     echo "Changed files: ${env.CHANGED_FILES}"
                     echo "Change categories: ${env.CHANGE_TYPES}"
                     echo "Git Author: ${env.GIT_AUTHOR}"
