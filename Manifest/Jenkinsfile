@@ -34,7 +34,7 @@ pipeline {
 
 					notify([
 						subject: "Pipeline Started: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-						recipients: 'lsaid@softnet,co.tz',
+						recipients: 'lsaid@softnet.co.tz',
 						template: 'start.html',
 						data: [
 							JOB_NAME: env.JOB_NAME,
@@ -60,12 +60,13 @@ pipeline {
 				script {
 					echo "==== Analyzing changes in the repository ===="
 					def changedFiles = []
-					def changeType = [:]
+					def changeTypes = [:]
 
 					try {
 						// Get list of changes files in this commit
 						def gitDiff = sh(
-							script: 'git diff --name-only HEAD~1 HEAD || git diff --name-only --cached',
+							//script: 'git diff --name-only HEAD~1 HEAD || git diff --name-only --cached',
+							script: 'git rev-parse --verif HEAD~1 >/dev/null 2>&1 && git diff --name-only HEAD~1 HEAD || git diff --name-only --cached || echo "First Commit"',
 							returnStdout: true
 						).trim()
 
