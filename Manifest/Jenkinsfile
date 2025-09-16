@@ -1,0 +1,118 @@
+// Load the shared library named 'jenkins-shared-library' from the 'main' branch so it can be used in this pipeline and use its functions
+library identifier: 'jenkinssharedlibrary@main', retriever: modernSCM([$class: 'GitSCMSource', remote: 'http://192.168.15.85/personal/jenkinssharedlibrary.git', credentialsId: 'LASAID'])
+
+pipeline {
+	agent {
+		label 'trivy_node'
+	}
+
+	environment {
+		// Register environment variables that can be used throughout the pipeline
+		REGISTRY_URL = 'http://registry.192.168.15.10.nip.io'
+		REGISTRY_CREDENTIALS_ID = 'docker-registry-credentials'
+
+		// Project Configuration
+		PROJECT_NAME = 'todoapi' // Name of the project
+		IMAGE_NAME = 'todoapi'  // Name of the Docker image
+		IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"  // Tag for the Docker image, using build number or 'latest' if not available
+	}
+
+	stages {
+		stage ('Send Start Notification') {
+			steps {
+				script {
+					// Call the commonSteps function from the shared library to send a start notification
+					def gitInfo = commonSteps(
+						branch: env.BRANCH_NAME ?: 'main',
+						repoUrl: 'http://192.168.15.85/personal/todoapi.git',
+						credentialsId: 'LASAID'
+					)
+
+					echo "Git Info: ${gitInfo}"
+					def triggerBy = detectBuildTrigger()
+					echo "Build triggered by: ${triggerBy}"
+
+					notify([
+						subject: "Pipeline Started: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+						recipients: 'lsaid@softnet,co.tz',
+						template: 'start.html',
+						data: [
+							JOB_NAME: env.JOB_NAME,
+							BUILD_NUMBER: env.BUILD_NUMBER,
+							BUILD_URL: env.BUILD_URL,
+							TRIGGERED_BY: triggerBy,
+							BRANCH: env.BRANCH_NAME ?: 'main',
+							BUILD_STATUS: 'STARTED',
+							GIT_COMMIT: gitInfo?.message ?: "No commit info",
+							GIT_AUTHOR: gitInfo?.author ?: "Unknown"
+						]
+					])
+
+					// Store Git information in environment variables for later stages
+					env.GIT_MESSAGE = gitInfo?.message ?: "No commit info"
+					env.GIT_AUTHOR = gitInfo?.author ?: "Unknown"
+				}
+			}
+		}
+
+		stage ('Detect Changes') {
+			steps {
+				script {
+					echo "==== Analyzing changes in the repository ===="
+					def changedFiles = []
+					def changeType = [:]
+
+					try {
+						// Get list of changes files in this commit
+						def gitDiff = sh(
+							script: 'git diff --name-only HEAD~1 HEAD || git diff --name-only --cached',
+							returnStdout: true
+						).trim()
+
+						if (gitDiff) {
+							changedFiles = gitDiff.split('\n').toList()
+							echo "Changed files: ${changedFiles}"
+
+							// Categorize changes
+							changedFiles.each { file ->
+								def fileLower = file.toLowerCase()
+								if (fileLower.contains('dockerfile') || fileLower.contains('docker-compose')) {
+								changeTypes['docker'] = true
+                                } else if (fileLower.endsWith('.sql') || fileLower.contains('migration') || fileLower.contains('schema')) {
+								changeTypes['database'] = true
+                                } else if (fileLower.contains('src/') || fileLower.endsWith('.java') || fileLower.endsWith('.js') || fileLower.endsWith('.py')) {
+								changeTypes['application'] = true
+                                } else if (fileLower.contains('test') || fileLower.endsWith('.test.')) {
+								changeTypes['tests'] = true
+                                } else if (fileLower.contains('config') || fileLower.endsWith('.properties') || fileLower.endsWith('.yml') || fileLower.endsWith('.yaml')) {
+								changeTypes['configuration'] = true
+                                } else if (fileLower.endsWith('.md') || fileLower.contains('readme') || fileLower.contains('doc')) {
+								changeTypes['documentation'] = true
+                                }
+							}
+						} else {
+							echo "No changes detected in the last commit."
+							changedFiles = ["No changes detected"]
+							changeTypes['none'] = true // Indicate no changes
+						}
+					} catch (Exception e) {
+						echo "Error detecting changes: ${e.getMessage()}"
+						echo "Proceeding with default build steps."
+						changedFiles = ["Error detecting changes"]
+						changeTypes['error'] = true // Indicate error in detection
+					}
+
+					// Store change types in environment variables for later stages
+					env.CHANGE_TYPES = changeTypes.keySet().join(',')
+					env.CHANGED_FILES = changedFiles.join('; ')
+					echo "=== Change Analysis Results ==="
+                    echo "Changed files: ${env.CHANGED_FILES}"
+                    echo "Change categories: ${env.CHANGE_TYPES}"
+                    echo "Git Author: ${env.GIT_AUTHOR}"
+                    echo "Git Commit Message: ${env.GIT_MESSAGE}"
+				}
+			}
+
+		}
+	}
+}
