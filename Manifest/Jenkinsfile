@@ -8,7 +8,7 @@ pipeline {
 
 	environment {
 		// Register environment variables that can be used throughout the pipeline
-		REGISTRY_URL = 'http://registry.192.168.15.10.nip.io'
+		REGISTRY_URL = 'registry.192.168.15.10.nip.io'
 		REGISTRY_CREDENTIALS_ID = 'docker-registry-credentials'
 
 		// Project Configuration
@@ -62,55 +62,6 @@ pipeline {
 					def changedFiles = []
 					def changeTypes = [:]
 
-					//try {
-					//	// Get list of changes files in this commit
-					//	def gitDiff = sh(
-					//		//script: 'git diff --name-only HEAD~1 HEAD || git diff --name-only --cached',
-					//		script: 'git rev-parse --verify HEAD~1 >/dev/null 2>&1 && git diff --name-only HEAD~1 HEAD || git diff --name-only --cached || echo "First Commit"',
-					//		returnStdout: true
-					//	).trim()
-					//
-					//	if (gitDiff) {
-					//		changedFiles = gitDiff.split('\n').toList()
-					//		echo "Changed files: ${changedFiles}"
-					//
-					//		// Categorize changes
-					//		changedFiles.each { file ->
-					//			def fileLower = file.toLowerCase()
-					//			if (fileLower.contains('dockerfile') || fileLower.contains('docker-compose')) {
-					//			changeTypes['docker'] = true
-                    //            } else if (fileLower.endsWith('.sql') || fileLower.contains('migration') || fileLower.contains('schema')) {
-					//			changeTypes['database'] = true
-                    //            } else if (fileLower.contains('src/') || fileLower.endsWith('.java') || fileLower.endsWith('.js') || fileLower.endsWith('.py')) {
-					//			changeTypes['application'] = true
-                    //            } else if (fileLower.contains('test') || fileLower.endsWith('.test.')) {
-					//			changeTypes['tests'] = true
-                    //            } else if (fileLower.contains('config') || fileLower.endsWith('.properties') || fileLower.endsWith('.yml') || fileLower.endsWith('.yaml')) {
-					//			changeTypes['configuration'] = true
-                    //            } else if (fileLower.endsWith('.md') || fileLower.contains('readme') || fileLower.contains('doc')) {
-					//			changeTypes['documentation'] = true
-                    //            }
-					//		}
-					//	} else {
-					//		echo "No changes detected in the last commit."
-					//		changedFiles = ["No changes detected"]
-					//		changeTypes['none'] = true // Indicate no changes
-					//	}
-					//} catch (Exception e) {
-					//	echo "Error detecting changes: ${e.getMessage()}"
-					//	echo "Proceeding with default build steps."
-					//	changedFiles = ["Error detecting changes"]
-					//	changeTypes['error'] = true // Indicate error in detection
-					//}
-					//
-					//// Store change types in environment variables for later stages
-					//env.CHANGE_TYPES = changeTypes.keySet().join(',')
-					//env.CHANGED_FILES = changedFiles.join('; ')
-					//echo "=== Change Analysis Results ==="
-                    //echo "Changed files: ${env.CHANGED_FILES}"
-                    //echo "Change categories: ${env.CHANGE_TYPES}"
-                    //echo "Git Author: ${env.GIT_AUTHOR}"
-                    //echo "Git Commit Message: ${env.GIT_MESSAGE}"
                     try {
 						// Try different methods to get changed files
                         def gitDiff = ""
@@ -219,8 +170,8 @@ pipeline {
 								imageTag: env.IMAGE_TAG,
 								dockerComposePath: 'docker-compose.yml', // or 'docker-compose.yaml' if that file exists
 								buildContext: '.',
-								dockerRegistry: env.REGISTRY_URL,
-								registryCredentials: env.REGISTRY_CREDENTIALS_ID,
+								registryUrl: env.REGISTRY_URL,
+								registryCredentialsId: env.REGISTRY_CREDENTIALS_ID,
 								buildArgs: [
 									'GIT_AUTHOR': env.GIT_AUTHOR,
 									'GIT_COMMIT': env.GIT_MESSAGE
@@ -235,8 +186,8 @@ pipeline {
 								imageTag: env.IMAGE_TAG,
 								dockerfilePath: 'Dockerfile',
 								buildContext: '.',
-								dockerRegistry: env.REGISTRY_URL,
-								registryCredentials: env.REGISTRY_CREDENTIALS_ID,
+								registryUrl: env.REGISTRY_URL,
+								registryCredentialsId: env.REGISTRY_CREDENTIALS_ID,
 								buildArgs: [
 									'GIT_AUTHOR': env.GIT_AUTHOR,
 									'GIT_COMMIT': env.GIT_MESSAGE
@@ -248,31 +199,107 @@ pipeline {
 						echo "✅ Build completed successfully"
 					} catch (Exception e) {
 						echo "❌ Build failed: ${e.getMessage()}"
-						error "Build process terminated due to failure."
+						currentBuild.result = 'FAILURE'
 
-						notify([
-                            subject: "❌ Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                            recipients: 'lsaid@softnet.co.tz',
-                            template: 'failure.html',
-                            data: [
-                            	JOB_NAME: env.JOB_NAME,
-                                BUILD_NUMBER: env.BUILD_NUMBER,
-                                BRANCH: env.BRANCH_NAME ?: "main",
-                                BUILD_URL: env.BUILD_URL,
-                                TRIGGERED_BY: detectBuildTrigger(),
-                                BUILD_STATUS: "FAILED",
-                                GIT_AUTHOR: env.GIT_AUTHOR,
-                                GIT_COMMIT: env.GIT_MESSAGE,
-                                CHANGED_FILES: env.CHANGED_FILES,
-                                CHANGE_TYPES: env.CHANGE_TYPES,
-                                ERROR_MESSAGE: e.getMessage()
-                            ]
-                        ])
+						try {
+							notify([
+								subject: "❌ Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+								recipients: 'lsaid@softnet.co.tz',
+								template: 'failure.html',
+								data: [
+									JOB_NAME: env.JOB_NAME,
+									BUILD_NUMBER: env.BUILD_NUMBER,
+									BRANCH: env.BRANCH_NAME ?: "main",
+									BUILD_URL: env.BUILD_URL,
+									TRIGGERED_BY: detectBuildTrigger(),
+									BUILD_STATUS: "FAILED",
+									GIT_AUTHOR: env.GIT_AUTHOR,
+									GIT_COMMIT: env.GIT_MESSAGE,
+									CHANGED_FILES: env.CHANGED_FILES,
+									CHANGE_TYPES: env.CHANGE_TYPES,
+									ERROR_MESSAGE: e.getMessage()
+                            	]
+                        	])
+						} catch (Exception notifyError) {
+							echo "Error sending failure notification: ${notifyError.getMessage()}"
+							// Fallback simple email notification
+						}
+						throw e // Rethrow to fail the build
 					}
 				}
 			}
 		}
 	}
+	post {
+		success {
+			script {
+				try {
+					notify([
+                        subject: "✅ Build Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                        recipients: 'lsaid@softnet.co.tz',
+                        template: 'success.html',
+                        data: [
+                            JOB_NAME: env.JOB_NAME,
+                            BUILD_NUMBER: env.BUILD_NUMBER,
+                            BRANCH: env.BRANCH_NAME ?: "main",
+                            BUILD_URL: env.BUILD_URL,
+                            TRIGGERED_BY: detectBuildTrigger(),
+                            BUILD_STATUS: "SUCCESS",
+                            GIT_AUTHOR: env.GIT_AUTHOR,
+                            GIT_COMMIT: env.GIT_MESSAGE,
+                            CHANGED_FILES: env.CHANGED_FILES,
+                            CHANGE_TYPES: env.CHANGE_TYPES,
+                            IMAGE_NAME: "${env.REGISTRY_URL}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+                        ]
+                    ])
+                } catch (Exception e) {
+					echo "Failed to send success notification: ${e.getMessage()}"
+                }
+            }
+        }
+
+        failure {
+			script {
+				try {
+					notify([
+                        subject: "❌ Pipeline Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                        recipients: 'lsaid@softnet.co.tz',
+                        template: 'failure.html',
+                        data: [
+                            JOB_NAME: env.JOB_NAME,
+                            BUILD_NUMBER: env.BUILD_NUMBER,
+                            BRANCH: env.BRANCH_NAME ?: "main",
+                            BUILD_URL: env.BUILD_URL,
+                            TRIGGERED_BY: detectBuildTrigger(),
+                            BUILD_STATUS: "FAILED",
+                            GIT_AUTHOR: env.GIT_AUTHOR ?: "Unknown",
+                            GIT_COMMIT: env.GIT_MESSAGE ?: "Unknown",
+                            CHANGED_FILES: env.CHANGED_FILES ?: "Unknown",
+                            CHANGE_TYPES: env.CHANGE_TYPES ?: "Unknown",
+                            ERROR_MESSAGE: "Pipeline failed - check build logs for details"
+                        ]
+                    ])
+                } catch (Exception e) {
+					echo "Failed to send failure notification: ${e.getMessage()}"
+                }
+            }
+        }
+
+        always {
+			script {
+				echo "Pipeline completed with status: ${currentBuild.result}"
+                // Clean up any remaining local images
+                try {
+					sh """
+                        docker images --filter "dangling=true" -q | head -10 | xargs -r docker rmi || true
+                        docker system prune -f || true
+                    """
+                } catch (Exception e) {
+					echo "Warning: Could not clean up Docker images: ${e.getMessage()}"
+                }
+            }
+        }
+    }
 }
 
 /**
