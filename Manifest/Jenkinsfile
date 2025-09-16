@@ -193,7 +193,84 @@ pipeline {
                     echo "Git Commit Message: ${env.GIT_MESSAGE}"
 				}
 			}
+		}
+		stage ('Build Application') {
+			steps {
+				script {
+					echo "==== Building Application ===="
+					echo "Git Author: ${env.GIT_AUTHOR}"
+					echo "Git Commit Message: ${env.GIT_MESSAGE}"
+					echo "Change categories: ${env.CHANGE_TYPES}"
 
+					def buildResult
+
+					try {
+						// Always build the application
+						echo "Starting application build..."
+
+						// Check if docker-compose.yml exists to determine build method
+						def composeExists = sh(script: 'test -f docker-compose.yml', returnStatus: true) == 0
+						def composeYmlExists = sh(script: 'test -f docker-compose.yaml', returnStatus: true) == 0
+
+						if (composeExists || composeYmlExists) {
+							echo "Using Docker Compose build method..."
+							buildResult = buildAppandDb(
+								imageName: env.IMAGE_NAME,
+								imageTag: env.IMAGE_TAG,
+								dockerComposePath: 'docker-compose.yml', // or 'docker-compose.yaml' if that file exists
+								buildContext: '.',
+								dockerRegistry: env.REGISTRY_URL,
+								registryCredentials: env.REGISTRY_CREDENTIALS_ID,
+								buildArgs: [
+									'GIT_AUTHOR': env.GIT_AUTHOR,
+									'GIT_COMMIT': env.GIT_MESSAGE
+								],
+								pushToRegistry: true, // Push image after build
+								removeAfterPush: true // Remove local image after push
+							)
+						} else {
+							echo "No docker-compose file found. Building with Dockerfile..."
+							buildResult = buildAppOnly(
+								imageName: env.IMAGE_NAME,
+								imageTag: env.IMAGE_TAG,
+								dockerfilePath: 'Dockerfile',
+								buildContext: '.',
+								dockerRegistry: env.REGISTRY_URL,
+								registryCredentials: env.REGISTRY_CREDENTIALS_ID,
+								buildArgs: [
+									'GIT_AUTHOR': env.GIT_AUTHOR,
+									'GIT_COMMIT': env.GIT_MESSAGE
+								],
+								pushToRegistry: true, // Push image after build
+								removeAfterPush: true // Remove local image after push
+							)
+						}
+						echo "✅ Build completed successfully"
+					} catch (Exception e) {
+						echo "❌ Build failed: ${e.getMessage()}"
+						error "Build process terminated due to failure."
+
+						notify([
+                            subject: "❌ Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                            recipients: 'lsaid@softnet.co.tz',
+                            template: 'failure.html',
+                            data: [
+                            	JOB_NAME: env.JOB_NAME,
+                                BUILD_NUMBER: env.BUILD_NUMBER,
+                                BRANCH: env.BRANCH_NAME ?: "main",
+                                BUILD_URL: env.BUILD_URL,
+                                TRIGGERED_BY: detectBuildTrigger(),
+                                BUILD_STATUS: "FAILED",
+                                GIT_AUTHOR: env.GIT_AUTHOR,
+                                GIT_COMMIT: env.GIT_MESSAGE,
+                                CHANGED_FILES: env.CHANGED_FILES,
+                                CHANGE_TYPES: env.CHANGE_TYPES,
+                                ERROR_MESSAGE: e.getMessage()
+                            ]
+                        ])
+					}
+				}
+			}
 		}
 	}
 }
