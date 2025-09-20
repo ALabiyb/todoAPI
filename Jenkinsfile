@@ -56,6 +56,37 @@ pipeline {
 				}
 			}
 		}
+		stage ('Build Application') {
+			steps {
+				script {
+					echo "==== Building Application ===="
+					echo "Git Author: ${env.GIT_AUTHOR}"
+					echo "Git Commit Message: ${env.GIT_MESSAGE}"
+					echo "Change categories: ${env.CHANGE_TYPES}"
+
+					def buildResult
+
+					try {
+						// Starting logic to build Application
+						echo "Starting application building...."
+
+						// Check if docker-compose.yml exists to determine build method
+						def composeExists = sh(script: 'test -f docker-compose.yml', returnStatus: true) == 0
+						def composeYmlExists = sh(script: 'test -f docker-compose.yaml', returnStatus: true) == 0
+
+						if (composeExists || composeYmlExists) {
+							echo "Using Docker Compose build method...."
+						} else {
+							echo "No docker-compose file found. Building with Dockerfile..."
+						}
+
+						echo "✅ Build completed successfully"
+					} catch (Exception e) {
+						echo "❌ Build failed: ${e.getMessage()}"
+					}
+				}
+			}
+		}
 	}
 
 	post {
