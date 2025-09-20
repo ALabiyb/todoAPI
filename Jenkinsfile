@@ -1,5 +1,5 @@
 // Load the shared library named 'jenkins-shared-library' from the 'main' branch so it can be used in this pipeline and use its functions
-library identifier: 'jenkinsSharedLibrary@main' retriever: modernSCM([$class: 'GitSCMSource', remote: 'https://github.com/ALabiyb/jenkinsSharedLibrary.git', credentialsId: ''])
+library identifier: 'jenkinsSharedLibrary@main', retriever: modernSCM([$class: 'GitSCMSource', remote: 'https://github.com/ALabiyb/jenkinsSharedLibrary.git', credentialsId: ''])
 
 pipeline {
 	agent {
