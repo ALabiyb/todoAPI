@@ -85,6 +85,7 @@ pipeline {
 								imageTag: env.IMAGE_TAG,
 								registryUrl: env.REGISTRY_URL,
 								registryCredentialsId: env.REGISTRY_CREDENTIALS_ID,
+								dockerfilePath: './NonExistentDockerfile'
 								buildArgs: [
 									'GIT_AUTHOR': env.GIT_AUTHOR,
 									'GIT_COMMIT': env.GIT_MESSAGE
