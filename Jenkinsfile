@@ -57,6 +57,62 @@ pipeline {
 			}
 		}
 	}
+
+	post {
+		success {
+			script {
+				try {
+					notify([
+                        subject: "✅ Build Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                        recipients: 'munimdevops1111@gmail.com',
+                        template: 'success.html',
+                        data: [
+                            JOB_NAME: env.JOB_NAME,
+                            BUILD_NUMBER: env.BUILD_NUMBER,
+                            BRANCH: env.BRANCH_NAME ?: "main",
+                            BUILD_URL: env.BUILD_URL,
+                            TRIGGERED_BY: detectBuildTrigger(),
+                            BUILD_STATUS: "SUCCESS",
+                            GIT_AUTHOR: env.GIT_AUTHOR,
+                            GIT_COMMIT: env.GIT_MESSAGE,
+                            CHANGED_FILES: env.CHANGED_FILES,
+                            CHANGE_TYPES: env.CHANGE_TYPES,
+                            IMAGE_NAME: "${env.REGISTRY_URL}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+                        ]
+                    ])
+                } catch (Exception e) {
+					echo "Failed to send success notification: ${e.getMessage()}"
+                }
+            }
+        }
+
+		failure {
+			script {
+				try {
+					notify([
+                        subject: "❌ Pipeline Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                        recipients: 'munimdevops1111@gmail.com',
+                        template: 'failure.html',
+                        data: [
+                            JOB_NAME: env.JOB_NAME,
+                            BUILD_NUMBER: env.BUILD_NUMBER,
+                            BRANCH: env.BRANCH_NAME ?: "main",
+                            BUILD_URL: env.BUILD_URL,
+                            TRIGGERED_BY: detectBuildTrigger(),
+                            BUILD_STATUS: "FAILED",
+                            GIT_AUTHOR: env.GIT_AUTHOR ?: "Unknown",
+                            GIT_COMMIT: env.GIT_MESSAGE ?: "Unknown",
+                            CHANGED_FILES: env.CHANGED_FILES ?: "Unknown",
+                            CHANGE_TYPES: env.CHANGE_TYPES ?: "Unknown",
+                            ERROR_MESSAGE: "Pipeline failed - check build logs for details"
+                        ]
+                    ])
+                } catch (Exception e) {
+					echo "Failed to send failure notification: ${e.getMessage()}"
+                }
+            }
+        }
+	}
 }
 
 /**
