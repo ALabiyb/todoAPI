@@ -140,7 +140,7 @@ pipeline {
 					notify([
                         subject: "❌ Pipeline Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                         recipients: 'munimdevops1111@gmail.com',
-                        template: 'failure.html',
+                        templateName: 'failure.html',
                         data: [
                             JOB_NAME: env.JOB_NAME,
                             BUILD_NUMBER: env.BUILD_NUMBER,
