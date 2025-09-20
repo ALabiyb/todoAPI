@@ -1,0 +1,326 @@
+// Load the shared library named 'jenkins-shared-library' from the 'main' branch so it can be used in this pipeline and use its functions
+library identifier: 'jenkinssharedlibrary@clean-branch', retriever: modernSCM([$class: 'GitSCMSource', remote: 'http://192.168.15.85/personal/jenkinssharedlibrary.git', credentialsId: 'LASAID'])
+
+pipeline {
+	agent {
+		label 'trivy_node'
+	}
+
+	environment {
+		// Register environment variables that can be used throughout the pipeline
+		REGISTRY_URL = 'registry.192.168.15.10.nip.io'
+		REGISTRY_CREDENTIALS_ID = 'docker-registry-credentials'
+
+		// Project Configuration
+		PROJECT_NAME = 'todoapi' // Name of the project
+		IMAGE_NAME = 'todoapi'  // Name of the Docker image
+		IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"  // Tag for the Docker image, using build number or 'latest' if not available
+	}
+
+	stages {
+		stage ('Send Start Notification') {
+			steps {
+				script {
+					// Call the commonSteps function from the shared library to send a start notification
+					def gitInfo = commonSteps(
+						branch: env.BRANCH_NAME ?: 'main',
+						repoUrl: 'http://192.168.15.85/personal/todoapi.git',
+						credentialsId: 'LASAID'
+					)
+
+					echo "Git Info: ${gitInfo}"
+					def triggerBy = detectBuildTrigger()
+					echo "Build triggered by: ${triggerBy}"
+
+					notify([
+						subject: "Pipeline Started: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+						recipients: 'lsaid@softnet.co.tz',
+						template: 'start.html',
+						data: [
+							JOB_NAME: env.JOB_NAME,
+							BUILD_NUMBER: env.BUILD_NUMBER,
+							BUILD_URL: env.BUILD_URL,
+							TRIGGERED_BY: triggerBy,
+							BRANCH: env.BRANCH_NAME ?: 'main',
+							BUILD_STATUS: 'STARTED',
+							GIT_COMMIT: gitInfo?.message ?: "No commit info",
+							GIT_AUTHOR: gitInfo?.author ?: "Unknown"
+						]
+					])
+
+					// Store Git information in environment variables for later stages
+					env.GIT_MESSAGE = gitInfo?.message ?: "No commit info"
+					env.GIT_AUTHOR = gitInfo?.author ?: "Unknown"
+				}
+			}
+		}
+
+		stage ('Detect Changes') {
+			steps {
+				script {
+					echo "==== Analyzing changes in the repository ===="
+					def changedFiles = []
+					def changeTypes = [:]
+
+                    try {
+						// Try different methods to get changed files
+                        def gitDiff = ""
+
+                        // Method 1: Try to get changes from the last commit
+                        def diffStatus = sh(script: 'git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "FAILED"', returnStdout: true).trim()
+
+                        if (diffStatus != "FAILED" && diffStatus != "") {
+							gitDiff = diffStatus
+                            echo "Got changes using HEAD~1 comparison"
+                        } else {
+							// Method 2: Try to get staged changes
+                            diffStatus = sh(script: 'git diff --name-only --cached 2>/dev/null || echo "FAILED"', returnStdout: true).trim()
+
+                            if (diffStatus != "FAILED" && diffStatus != "") {
+								gitDiff = diffStatus
+                                echo "Got changes using staged files"
+                            } else {
+								// Method 3: Get all files in the repository (for first commit or shallow clone)
+                                diffStatus = sh(script: 'git ls-files 2>/dev/null || echo "FAILED"', returnStdout: true).trim()
+
+                                if (diffStatus != "FAILED" && diffStatus != "") {
+									gitDiff = diffStatus
+                                    echo "Using all files in repository (likely first commit or shallow clone)"
+                                }
+                            }
+                        }
+
+                        if (gitDiff && gitDiff != "FAILED") {
+							changedFiles = gitDiff.split('\n').findAll { it.trim() } // Remove empty lines
+                            echo "Changed files: ${changedFiles}"
+
+                            // Categorize changes
+                            changedFiles.each { file ->
+                                def fileLower = file.toLowerCase()
+
+                                if (fileLower.contains('dockerfile') || fileLower.contains('docker-compose')) {
+								changeTypes['docker'] = true
+                                } else if (fileLower.endsWith('.sql') || fileLower.contains('migration') || fileLower.contains('schema')) {
+								changeTypes['database'] = true
+                                } else if (fileLower.contains('src/') || fileLower.endsWith('.java') || fileLower.endsWith('.js') || fileLower.endsWith('.py')) {
+								changeTypes['application'] = true
+                                } else if (fileLower.contains('test') || fileLower.endsWith('.test.')) {
+								changeTypes['tests'] = true
+                                } else if (fileLower.contains('config') || fileLower.endsWith('.properties') || fileLower.endsWith('.yml') || fileLower.endsWith('.yaml')) {
+								changeTypes['configuration'] = true
+                                } else if (fileLower.endsWith('.md') || fileLower.contains('readme') || fileLower.contains('doc')) {
+								changeTypes['documentation'] = true
+                                } else {
+								changeTypes['other'] = true
+                                }
+                            }
+
+                        } else {
+							echo "No file changes detected or unable to determine changes"
+                            changedFiles = ["Unable to detect changes"]
+                            changeTypes['application'] = true // Default assumption
+                        }
+
+                    } catch (Exception e) {
+						echo "Error detecting changes: ${e.getMessage()}"
+                        echo "Proceeding with default assumptions"
+                        changedFiles = ["Error detecting changes: ${e.getMessage()}"]
+                        changeTypes['application'] = true
+                    }
+
+                    // Ensure changeTypes is never empty
+                    if (!changeTypes) {
+						changeTypes['application'] = true
+                    }
+
+                    // Store change information
+                    env.CHANGED_FILES = changedFiles.join(',')
+                    env.CHANGE_TYPES = changeTypes.keySet().join(',')
+
+                    echo "=== Change Analysis Results ==="
+                    echo "Changed files: ${env.CHANGED_FILES}"
+                    echo "Change categories: ${env.CHANGE_TYPES}"
+                    echo "Git Author: ${env.GIT_AUTHOR}"
+                    echo "Git Commit Message: ${env.GIT_MESSAGE}"
+				}
+			}
+		}
+		stage ('Build Application') {
+			steps {
+				script {
+					echo "==== Building Application ===="
+					echo "Git Author: ${env.GIT_AUTHOR}"
+					echo "Git Commit Message: ${env.GIT_MESSAGE}"
+					echo "Change categories: ${env.CHANGE_TYPES}"
+
+					def buildResult
+
+					try {
+						// Always build the application
+						echo "Starting application build..."
+
+						// Check if docker-compose.yml exists to determine build method
+						def composeExists = sh(script: 'test -f docker-compose.yml', returnStatus: true) == 0
+						def composeYmlExists = sh(script: 'test -f docker-compose.yaml', returnStatus: true) == 0
+
+						if (composeExists || composeYmlExists) {
+							echo "Using Docker Compose build method..."
+							buildResult = buildAppandDb(
+								imageName: env.IMAGE_NAME,
+								imageTag: env.IMAGE_TAG,
+								dockerComposePath: 'docker-compose.yml', // or 'docker-compose.yaml' if that file exists
+								buildContext: '.',
+								registryUrl: env.REGISTRY_URL,
+								registryCredentialsId: env.REGISTRY_CREDENTIALS_ID,
+								buildArgs: [
+									'GIT_AUTHOR': env.GIT_AUTHOR,
+									'GIT_COMMIT': env.GIT_MESSAGE
+								],
+								pushToRegistry: true, // Push image after build
+								removeAfterPush: true // Remove local image after push
+							)
+						} else {
+							echo "No docker-compose file found. Building with Dockerfile..."
+							buildResult = buildAppOnly(
+								imageName: env.IMAGE_NAME,
+								imageTag: env.IMAGE_TAG,
+								dockerfilePath: 'Dockerfile',
+								buildContext: '.',
+								registryUrl: env.REGISTRY_URL,
+								registryCredentialsId: env.REGISTRY_CREDENTIALS_ID,
+								buildArgs: [
+									'GIT_AUTHOR': env.GIT_AUTHOR,
+									'GIT_COMMIT': env.GIT_MESSAGE
+								],
+								pushToRegistry: true, // Push image after build
+								removeAfterPush: true // Remove local image after push
+							)
+						}
+						echo "✅ Build completed successfully"
+					} catch (Exception e) {
+						echo "❌ Build failed: ${e.getMessage()}"
+						currentBuild.result = 'FAILURE'
+
+						try {
+							notify([
+								subject: "❌ Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+								recipients: 'lsaid@softnet.co.tz',
+								template: 'failure.html',
+								data: [
+									JOB_NAME: env.JOB_NAME,
+									BUILD_NUMBER: env.BUILD_NUMBER,
+									BRANCH: env.BRANCH_NAME ?: "main",
+									BUILD_URL: env.BUILD_URL,
+									TRIGGERED_BY: detectBuildTrigger(),
+									BUILD_STATUS: "FAILED",
+									GIT_AUTHOR: env.GIT_AUTHOR,
+									GIT_COMMIT: env.GIT_MESSAGE,
+									CHANGED_FILES: env.CHANGED_FILES,
+									CHANGE_TYPES: env.CHANGE_TYPES,
+									ERROR_MESSAGE: e.getMessage()
+                            	]
+                        	])
+						} catch (Exception notifyError) {
+							echo "Error sending failure notification: ${notifyError.getMessage()}"
+							// Fallback simple email notification
+						}
+						throw e // Rethrow to fail the build
+					}
+				}
+			}
+		}
+	}
+	post {
+		success {
+			script {
+				try {
+					notify([
+                        subject: "✅ Build Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                        recipients: 'lsaid@softnet.co.tz',
+                        template: 'success.html',
+                        data: [
+                            JOB_NAME: env.JOB_NAME,
+                            BUILD_NUMBER: env.BUILD_NUMBER,
+                            BRANCH: env.BRANCH_NAME ?: "main",
+                            BUILD_URL: env.BUILD_URL,
+                            TRIGGERED_BY: detectBuildTrigger(),
+                            BUILD_STATUS: "SUCCESS",
+                            GIT_AUTHOR: env.GIT_AUTHOR,
+                            GIT_COMMIT: env.GIT_MESSAGE,
+                            CHANGED_FILES: env.CHANGED_FILES,
+                            CHANGE_TYPES: env.CHANGE_TYPES,
+                            IMAGE_NAME: "${env.REGISTRY_URL}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+                        ]
+                    ])
+                } catch (Exception e) {
+					echo "Failed to send success notification: ${e.getMessage()}"
+                }
+            }
+        }
+
+        failure {
+			script {
+				try {
+					notify([
+                        subject: "❌ Pipeline Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                        recipients: 'lsaid@softnet.co.tz',
+                        template: 'failure.html',
+                        data: [
+                            JOB_NAME: env.JOB_NAME,
+                            BUILD_NUMBER: env.BUILD_NUMBER,
+                            BRANCH: env.BRANCH_NAME ?: "main",
+                            BUILD_URL: env.BUILD_URL,
+                            TRIGGERED_BY: detectBuildTrigger(),
+                            BUILD_STATUS: "FAILED",
+                            GIT_AUTHOR: env.GIT_AUTHOR ?: "Unknown",
+                            GIT_COMMIT: env.GIT_MESSAGE ?: "Unknown",
+                            CHANGED_FILES: env.CHANGED_FILES ?: "Unknown",
+                            CHANGE_TYPES: env.CHANGE_TYPES ?: "Unknown",
+                            ERROR_MESSAGE: "Pipeline failed - check build logs for details"
+                        ]
+                    ])
+                } catch (Exception e) {
+					echo "Failed to send failure notification: ${e.getMessage()}"
+                }
+            }
+        }
+
+        always {
+			script {
+				echo "Pipeline completed with status: ${currentBuild.result}"
+                // Clean up any remaining local images
+                try {
+					sh """
+                        docker images --filter "dangling=true" -q | head -10 | xargs -r docker rmi || true
+                        docker system prune -f || true
+                    """
+                } catch (Exception e) {
+					echo "Warning: Could not clean up Docker images: ${e.getMessage()}"
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Detect build trigger source
+ */
+def detectBuildTrigger() {
+	def triggeredBy = "Unknown"
+    def causes = currentBuild.getBuildCauses()
+
+    if (causes) {
+		def cause = causes[0]
+        if (cause.shortDescription.contains("GitLab")) {
+			triggeredBy = cause.shortDescription
+        } else if (cause.userName) {
+			triggeredBy = cause.userName
+        } else if (cause.shortDescription.toLowerCase().contains("scm change")) {
+			triggeredBy = "SCM Trigger"
+        } else {
+			triggeredBy = cause.shortDescription
+        }
+    }
+
+    return triggeredBy
+}

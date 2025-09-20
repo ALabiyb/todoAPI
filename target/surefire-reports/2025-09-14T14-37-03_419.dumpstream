@@ -1,0 +1,5 @@
+# Created at 2025-09-14T14:41:28.720
+Boot Manifest-JAR contains absolute paths in classpath 'D:\MyLearning\SpringBoot\apik8s\target\test-classes'
+Hint: <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
+'other' has different root
+

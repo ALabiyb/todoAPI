@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.abdulmunim.apik8s.Apik8sApplicationTests
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 13.27 s -- in com.abdulmunim.apik8s.Apik8sApplicationTests
