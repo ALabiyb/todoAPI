@@ -78,7 +78,7 @@ pipeline {
 							echo "Using Docker Compose build method...."
 						} else {
 							echo "No docker-compose file found. Building with Dockerfile..."
-							buildResult = buildAppOnly[(
+							buildResult = buildAppOnly(
 								projectName: env.JOB_NAME,
 								imageName: env.IMAGE_NAME,
 								imageTag: env.IMAGE_TAG,
@@ -90,7 +90,7 @@ pipeline {
 								],
 								pushToRegistry: true, // Push image after build
 								removeAfterPush: true // Remove local image after push
-							)]
+							)
 						}
 
 						echo "✅ Build completed successfully"
