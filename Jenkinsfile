@@ -37,7 +37,7 @@ pipeline {
 					notify([
 						subject: "Pipeline Started: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
 						recipients: 'munimdevops1111@gmail.com',
-						template: 'start.html',
+						templateName: 'start.html',
 						data: [
 							JOB_NAME: env.JOB_NAME,
 							BUILD_NUMBER: env.BUILD_NUMBER,
@@ -112,7 +112,7 @@ pipeline {
 					notify([
                         subject: "✅ Build Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                         recipients: 'munimdevops1111@gmail.com',
-                        template: 'success.html',
+                        templateName: 'success.html',
                         data: [
                             JOB_NAME: env.JOB_NAME,
                             BUILD_NUMBER: env.BUILD_NUMBER,
