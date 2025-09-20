@@ -2,9 +2,11 @@
 library identifier: 'jenkinsSharedLibrary@main', retriever: modernSCM([$class: 'GitSCMSource', remote: 'https://github.com/ALabiyb/jenkinsSharedLibrary.git', credentialsId: ''])
 
 pipeline {
-	agent {
-		label 'trivy_node'
-	}
+	// agent {
+	// 	label 'trivy_node'
+	// }
+
+	agent any
 
 	environment {
 		// Register environment variables that can be used throughout the pipeline
