@@ -96,6 +96,8 @@ pipeline {
 						echo "✅ Build completed successfully"
 					} catch (Exception e) {
 						echo "❌ Build failed: ${e.getMessage()}"
+						error("Stopping pipeline because build failed")
+						currentBuild.result = 'FAILURE'
 					}
 				}
 			}
