@@ -60,9 +60,10 @@ pipeline {
 			steps {
 				script {
 					echo "==== Building Application ===="
-					echo "Git Author: ${env.GIT_AUTHOR}"
-					echo "Git Commit Message: ${env.GIT_MESSAGE}"
-					echo "Change categories: ${env.CHANGE_TYPES}"
+
+					agent {
+						label 'trivy_docker'
+					}
 
 					def buildResult
 
