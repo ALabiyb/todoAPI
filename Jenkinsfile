@@ -1,52 +1,81 @@
-library identifier: 'refactoringsoftcmspipeline@main', retriever: modernSCM([$class: 'GitSCMSource', remote: 'http://192.168.15.85/personal/refactoringsoftcmspipeline.git', credentialsId: 'LASAID'])
+// Load the shared library named 'jenkins-shared-library' from the 'main' branch so it can be used in this pipeline and use its functions
+library identifier: 'jenkinsSharedLibrary@main' retriever: modernSCM([$class: 'GitSCMSource', remote: 'https://github.com/ALabiyb/jenkinsSharedLibrary.git', credentialsId: ''])
 
 pipeline {
-    agent {
+	agent {
 		label 'trivy_node'
-    }
+	}
 
+	environment {
+		// Register environment variables that can be used throughout the pipeline
+		REGISTRY_URL = 'docker.io'
+		REGISTRY_CREDENTIALS_ID = 'docker-registry-credentials'
 
-stages {
-		stage('Build Pipeline') {
+		// Project Configuration
+		PROJECT_NAME = 'todoapi' // Name of the project
+		IMAGE_NAME = 'todoapi'  // Name of the Docker image
+		IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"  // Tag for the Docker image, using build number or 'latest' if not available
+	}
+
+	stages {
+		stage ('Send Start Notification') {
 			steps {
 				script {
-					buildPipeline([
-				// Required parameters])
-				registry: 'registry.192.168.15.10.nip.io',
-				imageName: 'todoapi',
-				gitRepo: 'http://192.168.15.85/personal/todoapi.git',
-				appGitCredId: 'git-credentials-id',
-				registryCredentials: 'LASAID',
-				deploymentGitCredId: 'deployment-git-credentials-id',
-				manifestPath: 'manifests',
+					// Call the commonSteps function from the shared library to send a start notification
+					def gitInfo = commonSteps(
+						branch: env.BRANCH_NAME ?: 'main',
+						repoUrl: 'https://github.com/ALabiyb/todoAPI.git',
+						credentialsId: 'password'
+					)
 
-				// SonarQube parameters
-				sonarProjectKey: 'my-app',
-				sonarProjectName: 'My App',
-				sonarProjectVersion: '1.0',
-				sonarQubeServer: 'SonarQube',
-				sonarSources: 'src',
-				sonarExclusions: '**/test/**,**/tests/**,**/*.spec.js',
-				sonarJavaBindings: 'true',
-				sonarTests: 'tests',
-				failOnQualityGate: true,
+					echo "Git Info: ${gitInfo}"
+					def triggerBy = detectBuildTrigger()
+					echo "Build triggered by: ${triggerBy}"
 
-				// Security scanning parameters
-				failOnSecurityScan: true,
-				maxHighVulnerabilities: 5,
+					notify([
+						subject: "Pipeline Started: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+						recipients: 'munimdevops1111@gmail.com',
+						template: 'start.html',
+						data: [
+							JOB_NAME: env.JOB_NAME,
+							BUILD_NUMBER: env.BUILD_NUMBER,
+							BUILD_URL: env.BUILD_URL,
+							TRIGGERED_BY: triggerBy,
+							BRANCH: env.BRANCH_NAME ?: 'main',
+							BUILD_STATUS: 'STARTED',
+							GIT_COMMIT: gitInfo?.message ?: "No commit info",
+							GIT_AUTHOR: gitInfo?.author ?: "Unknown"
+						]
+					])
 
-				// Email notification parameters
-				//emailProjectLead: 'project.lead@softnet.co.tz',
-				cicdEmail: 'lsaid@softnet.co.tz',
-
-				// Other optional parameters can be added here
-				branchName: 'main',
-				servicesToBuild: 'app',
-				manifestFile: 'deployment.yaml',
-				namespace: 'softcms',
-				])
+					// Store Git information in environment variables for later stages
+					env.GIT_MESSAGE = gitInfo?.message ?: "No commit info"
+					env.GIT_AUTHOR = gitInfo?.author ?: "Unknown"
+				}
 			}
 		}
 	}
 }
+
+/**
+ * Detect build trigger source
+ */
+def detectBuildTrigger() {
+	def triggeredBy = "Unknown"
+    def causes = currentBuild.getBuildCauses()
+
+    if (causes) {
+		def cause = causes[0]
+        if (cause.shortDescription.contains("GitLab")) {
+			triggeredBy = cause.shortDescription
+        } else if (cause.userName) {
+			triggeredBy = cause.userName
+        } else if (cause.shortDescription.toLowerCase().contains("scm change")) {
+			triggeredBy = "SCM Trigger"
+        } else {
+			triggeredBy = cause.shortDescription
+        }
+    }
+
+    return triggeredBy
 }
