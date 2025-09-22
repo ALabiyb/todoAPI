@@ -100,6 +100,19 @@ pipeline {
 						echo "❌ Build failed: ${e.getMessage()}"
 						error("Stopping pipeline because build failed")
 						currentBuild.result = 'FAILURE'
+
+						// Store error result
+						if (!buildResult){
+							buildResult = [
+								success: false,
+								buildSuccess: false,
+								pushSuccess: false,
+								errorType: "BUILD_ERROR",
+								errorMessage: e.getMessage(),
+								message: "Build stage failed: ${e.getMessage}"
+							]
+							env.BUILD_RESULT = writeJSON returnText: true, json: buildResult
+						}
 					}
 				}
 			}
@@ -152,6 +165,12 @@ pipeline {
                             GIT_COMMIT: env.GIT_MESSAGE ?: "Unknown",
                             CHANGED_FILES: env.CHANGED_FILES ?: "Unknown",
                             CHANGE_TYPES: env.CHANGE_TYPES ?: "Unknown",
+							BUILD_RESULT: buildResult,
+					        ERROR_TYPE: buildResult.errorType,
+							ERROR_MESSAGE: buildResult.errorMessage,
+							BUILD_SUCCESS: buildResult.buildSuccess,
+							PUSH_SUCCESS: buildResult.pushSuccess,
+                            DETAILED_MESSAGE: buildResult.message,
                             ERROR_MESSAGE: "Pipeline failed - check build logs for details"
                         ]
                     ])
