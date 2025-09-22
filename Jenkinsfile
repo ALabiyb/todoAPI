@@ -85,7 +85,7 @@ pipeline {
 								imageTag: env.IMAGE_TAG,
 								registryUrl: env.REGISTRY_URL,
 								registryCredentialsId: env.REGISTRY_CREDENTIALS_ID,
-								dockerfilePath: './NonExistentDockerfile',
+								dockerfilePath: '',
 								buildArgs: [
 									'GIT_AUTHOR': env.GIT_AUTHOR,
 									'GIT_COMMIT': env.GIT_MESSAGE
@@ -93,6 +93,11 @@ pipeline {
 								pushToRegistry: true, // Push image after build
 								removeAfterPush: true // Remove local image after push
 							)
+
+							if (!buildResult.success){
+								 echo "❌ Build failed: ${buildResult.error}"
+            					error("Stopping pipeline because build failed")
+							}
 						}
 
 						echo "✅ Build completed successfully"
