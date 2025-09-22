@@ -114,7 +114,7 @@ pipeline {
 						env.BUILD_RESULT_ERROR_TYPE = 'BUILD_ERROR'
 						env.BUILD_RESULT_ERROR_MESSAGE = e.getMessage()
 						env.BUILD_RESULT_MESSAGE = "Build stage failed: ${e.getMessage()}"
-						error("Stopping pipeline because build failed")
+						// error("Stopping pipeline because build failed")
 						currentBuild.result = 'FAILURE'
 
 						// // Store error result
