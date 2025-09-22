@@ -93,25 +93,41 @@ pipeline {
 								echo "❌ Build failed: ${buildResult.error}"
 								error("Stopping pipeline because build failed")
 							}
+
+							// Store success result in environment
+							env.BUILD_RESULT_SUCCESS = 'true'
+							env.BUILD_RESULT_BUILD_SUCCESS = buildResult.buildSuccess?.toString() ?: 'false'
+							env.BUILD_RESULT_PUSH_SUCCESS = buildResult.pushSuccess?.toString() ?: 'false'
+							env.BUILD_RESULT_ERROR_TYPE = buildResult.errorType ?: 'NONE'
+							env.BUILD_RESULT_ERROR_MESSAGE = buildResult.errorMessage ?: ''
+							env.BUILD_RESULT_MESSAGE = buildResult.message ?: 'Build completed successfully'
 						}
 
 						echo "✅ Build completed successfully"
 					} catch (Exception e) {
 						echo "❌ Build failed: ${e.getMessage()}"
+
+						// Store failure result in environment
+						env.BUILD_RESULT_SUCCESS = 'false'
+						env.BUILD_RESULT_BUILD_SUCCESS = 'false'
+						env.BUILD_RESULT_PUSH_SUCCESS = 'false'
+						env.BUILD_RESULT_ERROR_TYPE = 'BUILD_ERROR'
+						env.BUILD_RESULT_ERROR_MESSAGE = e.getMessage()
+						env.BUILD_RESULT_MESSAGE = "Build stage failed: ${e.getMessage()}"
 						error("Stopping pipeline because build failed")
 						currentBuild.result = 'FAILURE'
 
-						// Store error result
-						if (!buildResult){
-							buildResult = [
-								success: false,
-								buildSuccess: false,
-								pushSuccess: false,
-								errorType: "BUILD_ERROR",
-								errorMessage: e.getMessage(),
-								message: "Build stage failed: ${e.getMessage}"
-							]
-							env.BUILD_RESULT = writeJSON returnText: true, json: buildResult
+						// // Store error result
+						// if (!buildResult){
+						// 	buildResult = [
+						// 		success: false,
+						// 		buildSuccess: false,
+						// 		pushSuccess: false,
+						// 		errorType: "BUILD_ERROR",
+						// 		errorMessage: e.getMessage(),
+						// 		message: "Build stage failed: ${e.getMessage}"
+						// 	]
+						// 	env.BUILD_RESULT = writeJSON returnText: true, json: buildResult
 						}
 					}
 				}
@@ -165,13 +181,19 @@ pipeline {
                             GIT_COMMIT: env.GIT_MESSAGE ?: "Unknown",
                             CHANGED_FILES: env.CHANGED_FILES ?: "Unknown",
                             CHANGE_TYPES: env.CHANGE_TYPES ?: "Unknown",
-							BUILD_RESULT: buildResult,
-					        ERROR_TYPE: buildResult.errorType,
-							ERROR_MESSAGE: buildResult.errorMessage,
-							BUILD_SUCCESS: buildResult.buildSuccess,
-							PUSH_SUCCESS: buildResult.pushSuccess,
-                            DETAILED_MESSAGE: buildResult.message,
-                            ERROR_MESSAGE: "Pipeline failed - check build logs for details"
+							// BUILD_RESULT: buildResult,
+					        // ERROR_TYPE: buildResult.errorType,
+							// ERROR_MESSAGE: buildResult.errorMessage,
+							// BUILD_SUCCESS: buildResult.buildSuccess,
+							// PUSH_SUCCESS: buildResult.pushSuccess,
+                            // DETAILED_MESSAGE: buildResult.message,
+                            // ERROR_MESSAGE: "Pipeline failed - check build logs for details"
+							// Use environment variables instead of buildResult
+							BUILD_SUCCESS: env.BUILD_RESULT_BUILD_SUCCESS ?: 'false',
+							PUSH_SUCCESS: env.BUILD_RESULT_PUSH_SUCCESS ?: 'false',
+							ERROR_TYPE: env.BUILD_RESULT_ERROR_TYPE ?: 'UNKNOWN_ERROR',
+							ERROR_MESSAGE: env.BUILD_RESULT_ERROR_MESSAGE ?: 'Pipeline failed - check build logs for details',
+							DETAILED_MESSAGE: env.BUILD_RESULT_MESSAGE ?: 'Pipeline failed - check build logs for details'
                         ]
                     ])
                 } catch (Exception e) {
