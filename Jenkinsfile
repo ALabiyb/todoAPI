@@ -2,11 +2,9 @@
 library identifier: 'jenkinsSharedLibrary@main', retriever: modernSCM([$class: 'GitSCMSource', remote: 'https://github.com/ALabiyb/jenkinsSharedLibrary.git', credentialsId: ''])
 
 pipeline {
-	// agent {
-	// 	label 'trivy_node'
-	// }
-
-	agent any
+	agent {
+		label 'trivy_node'
+	}
 
 	environment {
 		// Register environment variables that can be used throughout the pipeline
@@ -62,48 +60,46 @@ pipeline {
 				script {
 					echo "==== Building Application ===="
 
-					node('trivy_docker'){
-						def buildResult
+					def buildResult
 
-						try {
-							// Starting logic to build Application
-							echo "Starting application building...."
+					try {
+						// Starting logic to build Application
+						echo "Starting application building...."
 
-							// Check if docker-compose.yml exists to determine build method
-							def composeExists = sh(script: 'test -f docker-compose.yml', returnStatus: true) == 0
-							def composeYmlExists = sh(script: 'test -f docker-compose.yaml', returnStatus: true) == 0
+						// Check if docker-compose.yml exists to determine build method
+						def composeExists = sh(script: 'test -f docker-compose.yml', returnStatus: true) == 0
+						def composeYmlExists = sh(script: 'test -f docker-compose.yaml', returnStatus: true) == 0
 
-							if (composeExists || composeYmlExists) {
-								echo "Using Docker Compose build method...."
-							} else {
-								echo "No docker-compose file found. Building with Dockerfile..."
-								buildResult = buildAppOnly(
-									projectName: env.JOB_NAME,
-									imageName: env.IMAGE_NAME,
-									imageTag: env.IMAGE_TAG,
-									registryUrl: env.REGISTRY_URL,
-									registryCredentialsId: env.REGISTRY_CREDENTIALS_ID,
-									dockerfilePath: '',
-									buildArgs: [
-										'GIT_AUTHOR': env.GIT_AUTHOR,
-										'GIT_COMMIT': env.GIT_MESSAGE
-									],
-									pushToRegistry: true, // Push image after build
-									removeAfterPush: true // Remove local image after push
-								)
+						if (composeExists || composeYmlExists) {
+							echo "Using Docker Compose build method...."
+						} else {
+							echo "No docker-compose file found. Building with Dockerfile..."
+							buildResult = buildAppOnly(
+								projectName: env.JOB_NAME,
+								imageName: env.IMAGE_NAME,
+								imageTag: env.IMAGE_TAG,
+								registryUrl: env.REGISTRY_URL,
+								registryCredentialsId: env.REGISTRY_CREDENTIALS_ID,
+								dockerfilePath: '',
+								buildArgs: [
+									'GIT_AUTHOR': env.GIT_AUTHOR,
+									'GIT_COMMIT': env.GIT_MESSAGE
+								],
+								pushToRegistry: true, // Push image after build
+								removeAfterPush: true // Remove local image after push
+							)
 
-								if (!buildResult.success){
-									echo "❌ Build failed: ${buildResult.error}"
-									error("Stopping pipeline because build failed")
-								}
+							if (!buildResult.success){
+								echo "❌ Build failed: ${buildResult.error}"
+								error("Stopping pipeline because build failed")
 							}
-
-							echo "✅ Build completed successfully"
-						} catch (Exception e) {
-							echo "❌ Build failed: ${e.getMessage()}"
-							error("Stopping pipeline because build failed")
-							currentBuild.result = 'FAILURE'
 						}
+
+						echo "✅ Build completed successfully"
+					} catch (Exception e) {
+						echo "❌ Build failed: ${e.getMessage()}"
+						error("Stopping pipeline because build failed")
+						currentBuild.result = 'FAILURE'
 					}
 				}
 			}
