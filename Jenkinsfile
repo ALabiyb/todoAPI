@@ -128,7 +128,7 @@ pipeline {
 						// 		message: "Build stage failed: ${e.getMessage}"
 						// 	]
 						// 	env.BUILD_RESULT = writeJSON returnText: true, json: buildResult
-						}
+						// }
 					}
 				}
 			}
