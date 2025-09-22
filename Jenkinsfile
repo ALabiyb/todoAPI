@@ -3,7 +3,7 @@ library identifier: 'jenkinsSharedLibrary@main', retriever: modernSCM([$class: '
 
 pipeline {
 	agent {
-		label 'trivy_node'
+		label 'trivy_docker'
 	}
 
 	environment {
