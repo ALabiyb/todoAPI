@@ -29,7 +29,7 @@ pipeline {
 						branch: env.BRANCH_NAME ?: 'main',
 						repoUrl: 'https://github.com/ALabiyb/todoAPI.git',
 						credentialsId: 'password'
-					)
+					)git sta
 
 					echo "Git Info: ${gitInfo}"
 					def triggerBy = detectBuildTrigger()
