@@ -16,7 +16,7 @@ pipeline {
 		// Project Configuration
 		PROJECT_NAME = 'todoapi' // Name of the project
 		IMAGE_NAME = 'todoapi'  // Name of the Docker image
-		IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}",  // Tag for the Docker image, using build number or 'latest' if not available
+		IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"  // Tag for the Docker image, using build number or 'latest' if not available
 		BRANCH_NAME = 'apik8s'
 	}
 
