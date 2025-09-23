@@ -132,14 +132,15 @@ pipeline {
 			}
 			steps {
 				script {
-				pushToRegistry(
-					imageName: env.IMAGE_NAME,
-					imageTag: env.IMAGE_TAG,
-					registryType: env.REGISTRY_TYPE,
-					// registryUrl: env.REGISTRY_URL,
-					privateRegistryUrl: env.PRIVATE_REGISTRY_URL,
-					credentialsId: env.REGISTRY_CREDENTIALS_ID
-				)
+					pushToRegistry(
+						imageName: env.IMAGE_NAME,
+						imageTag: env.IMAGE_TAG,
+						registryType: env.REGISTRY_TYPE,
+						// registryUrl: env.REGISTRY_URL,
+						privateRegistryUrl: env.PRIVATE_REGISTRY_URL,
+						credentialsId: env.REGISTRY_CREDENTIALS_ID
+					)
+				}
 			}
 		}
 			// steps {
