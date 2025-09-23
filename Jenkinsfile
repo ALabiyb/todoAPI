@@ -8,7 +8,9 @@ pipeline {
 
 	environment {
 		// Register environment variables that can be used throughout the pipeline
+		REGISTRY_TYPE = 'dockerhub' // Type of Docker registry (e.g., dockerhub, ecr, gcr or private registry)
 		REGISTRY_URL = 'docker.io'
+		PRIVATE_REGISTRY_URL = '' // URL of private registry if using one
 		REGISTRY_CREDENTIALS_ID = 'docker-registry-credentials'
 
 		// Project Configuration
@@ -74,20 +76,23 @@ pipeline {
 							echo "Using Docker Compose build method...."
 						} else {
 							echo "No docker-compose file found. Building with Dockerfile..."
+							def registryConfig = getRegistryConfig(env.REGISTRY_TYPE)
 							buildResult = buildAppOnly(
 								projectName: env.JOB_NAME,
 								imageName: env.IMAGE_NAME,
 								imageTag: env.IMAGE_TAG,
-								registryUrl: env.REGISTRY_URL,
+								registryUrl: registryConfig.url,
 								registryCredentialsId: env.REGISTRY_CREDENTIALS_ID,
 								dockerfilePath: '',
 								buildArgs: [
 									'GIT_AUTHOR': env.GIT_AUTHOR,
 									'GIT_COMMIT': env.GIT_MESSAGE
 								],
-								pushToRegistry: true, // Push image after build
-								removeAfterPush: true // Remove local image after push
+								pushToRegistry: false, // Push image after build
+								removeAfterPush: false // Remove local image after push
 							)
+
+							env.BUILT_IMAGE_NAME = buildResult.imageName
 
 							if (!buildResult.success){
 								echo "❌ Build failed: ${buildResult.error}"
@@ -120,12 +125,49 @@ pipeline {
 				}
 			}
 		}
+
+		stage('Push to Registry') {
+			when {
+				expression { return env.BUILD_RESULT_SUCCESS == 'true'}
+			}
+			steps {
+				script {
+				pushToRegistry(
+					imageName: env.IMAGE_NAME,
+					imageTag: env.IMAGE_TAG,
+					registryType: env.REGISTRY_TYPE,
+					// registryUrl: env.REGISTRY_URL,
+					privateRegistryUrl: env.PRIVATE_REGISTRY_URL,
+					credentialsId: env.REGISTRY_CREDENTIALS_ID
+				)
+			}
+		}
+			// steps {
+			// 	script {
+			// 		echo "==== Pushing Docker Image to Registry ===="
+			// 		// try {
+			// 		// 	pushToRegistry(
+			// 		// 		imageName: env.IMAGE_NAME,
+			// 		// 		imageTag: env.IMAGE_TAG,
+			// 		// 		registryType: 'dockerhub',
+			// 		// 		credentialsId: env.REGISTRY_CREDENTIALS_ID
+			// 		// 	)
+			// 		// 	echo "✅ Image pushed to registry successfully"
+			// 		// } catch (Exception e) {
+			// 		// 	echo "❌ Failed to push image: ${e.getMessage()}"
+			// 		// 	error("Stopping pipeline because push to registry failed")
+			// 		// }
+
+					
+			// 	}
+			// }
 	}
 
 	post {
 		success {
 			script {
 				try {
+					def finalImageName = getFinalImageName(env.REGISTRY_TYPE, env.IMAGE_NAME, env.IMAGE_TAG)
 					notify([
                         subject: "✅ Build Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                         recipients: 'munimdevops1111@gmail.com',
@@ -141,7 +183,9 @@ pipeline {
                             GIT_COMMIT: env.GIT_MESSAGE,
                             CHANGED_FILES: env.CHANGED_FILES,
                             CHANGE_TYPES: env.CHANGE_TYPES,
-                            IMAGE_NAME: "${env.REGISTRY_URL}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+                            // IMAGE_NAME: "${env.REGISTRY_URL}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+							IMAGE_NAME: finalImageName
+
                         ]
                     ])
                 } catch (Exception e) {
@@ -204,4 +248,34 @@ def detectBuildTrigger() {
     }
 
     return triggeredBy
+}
+
+
+/**
+ * Get registry configuration based on type
+ */
+def getRegistryConfig(registryType) {
+	switch(registryType.toLowerCase()) {
+		case 'dockerhub':
+			return [url: 'docker.io', type: 'dockerhub']
+		case 'private':
+			return [url: env.PRIVATE_REGISTRY_URL, type: 'private']
+		default:
+			return [url: 'docker.io', type: 'dockerhub']
+	}
+}
+
+
+/**
+ * Get final image name based on registry type
+ */
+def getFinalImageName(registryType, imageName, imageTag) {
+	switch(registryType.toLowerCase()) {
+		case 'dockerhub':
+			return "docker.io/${imageName}:${imageTag}"
+		case 'private':
+			return "${env.PRIVATE_REGISTRY_URL}/${imageName}:${imageTag}"
+		default:
+			return "${imageName}:${imageTag}"
+	}
 }
