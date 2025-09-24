@@ -161,38 +161,38 @@ pipeline {
 
 					
 			// 	}
-			// }
+	}
 
-	post {
-		success {
-			script {
-				try {
-					def finalImageName = getFinalImageName(env.REGISTRY_TYPE, env.IMAGE_NAME, env.IMAGE_TAG)
-					notify([
-                        subject: "✅ Build Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                        recipients: 'munimdevops1111@gmail.com',
-                        templateName: 'success.html',
-                        data: [
-                            JOB_NAME: env.JOB_NAME,
-                            BUILD_NUMBER: env.BUILD_NUMBER,
-                            BRANCH: env.BRANCH_NAME ?: "main",
-                            BUILD_URL: env.BUILD_URL,
-                            TRIGGERED_BY: detectBuildTrigger(),
-                            BUILD_STATUS: "SUCCESS",
-                            GIT_AUTHOR: env.GIT_AUTHOR,
-                            GIT_COMMIT: env.GIT_MESSAGE,
-                            CHANGED_FILES: env.CHANGED_FILES,
-                            CHANGE_TYPES: env.CHANGE_TYPES,
-                            // IMAGE_NAME: "${env.REGISTRY_URL}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
-							IMAGE_NAME: finalImageName
+		post {
+			success {
+				script {
+					try {
+						def finalImageName = getFinalImageName(env.REGISTRY_TYPE, env.IMAGE_NAME, env.IMAGE_TAG)
+						notify([
+							subject: "✅ Build Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+							recipients: 'munimdevops1111@gmail.com',
+							templateName: 'success.html',
+							data: [
+								JOB_NAME: env.JOB_NAME,
+								BUILD_NUMBER: env.BUILD_NUMBER,
+								BRANCH: env.BRANCH_NAME ?: "main",
+								BUILD_URL: env.BUILD_URL,
+								TRIGGERED_BY: detectBuildTrigger(),
+								BUILD_STATUS: "SUCCESS",
+								GIT_AUTHOR: env.GIT_AUTHOR,
+								GIT_COMMIT: env.GIT_MESSAGE,
+								CHANGED_FILES: env.CHANGED_FILES,
+								CHANGE_TYPES: env.CHANGE_TYPES,
+								// IMAGE_NAME: "${env.REGISTRY_URL}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+								IMAGE_NAME: finalImageName
 
-                        ]
-                    ])
-                } catch (Exception e) {
-					echo "Failed to send success notification: ${e.getMessage()}"
-                }
-            }
-        }
+							]
+						])
+					} catch (Exception e) {
+						echo "Failed to send success notification: ${e.getMessage()}"
+					}
+				}
+			}
 
 		failure {
 			script {
