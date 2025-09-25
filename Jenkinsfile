@@ -126,6 +126,66 @@ pipeline {
 			}
 		}
 
+		stage ('Image Trivy Scan') {
+			when {
+				expression { return env.BUILD_RESULT_SUCCESS == 'true'}
+			}
+			steps {
+				script {
+					echo "==== Starting Security Scan ===="
+
+					try {
+						if (!env.BUILT_IMAGE_NAME) {
+							error("No built image found for scanning")
+						}
+
+						def scanResult = trivyScan(
+							imageName: env.BUILT_IMAGE_NAME,
+							severity: 'CRITICAL,HIGH,MEDIUM',
+							format: 'table',
+							outputFile: "trivy-report-${env.BUILD_NUMBER}.txt",
+							failOnVuln: true
+						)
+
+						if (scanResult.vulnerabilitiesFound) {
+							echo "❌ Vulnerabilities found:\n${scanResult.reportFile}"
+
+							// Send scan result via email before stopping
+							notify([
+								subject: "❌ Vulnerabilities Found: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+								recipients: 'munimdevops1111@gmail.com',
+								templateName: 'trivy.html',
+								data: [
+									JOB_NAME: env.JOB_NAME,
+									BUILD_NUMBER: env.BUILD_NUMBER,
+									BUILD_URL: env.BUILD_URL,
+									BUILD_STATUS: "VULNERABILITIES_FOUND",
+									IMAGE_NAME: env.BUILT_IMAGE_NAME,
+									TRIVY_REPORT: scanResult.reportFile
+								]
+							])
+
+							// error("Stopping pipeline due to vulnerabilities found")
+						} else {
+							echo "✅ No vulnerabilities found"
+						}
+					} catch (Exception e) {
+						echo "❌ Security scan failed: ${e.getMessage()}"
+
+						// Store failure result in environment
+						env.BUILD_RESULT_SUCCESS = 'false'
+						env.BUILD_RESULT_BUILD_SUCCESS = env.BUILD_RESULT_BUILD_SUCCESS ?: 'false'
+						env.BUILD_RESULT_PUSH_SUCCESS = env.BUILD_RESULT_PUSH_SUCCESS ?: 'false'
+						env.BUILD_RESULT_ERROR_TYPE = 'SECURITY_SCAN_ERROR'
+						env.BUILD_RESULT_ERROR_MESSAGE = e.getMessage()
+						env.BUILD_RESULT_MESSAGE = "Security scan stage failed: ${e.getMessage()}"
+						error("Stopping pipeline because security scan failed")
+						currentBuild.result = 'FAILURE'
+					}
+				}
+			}
+		}
+
 		stage('Push to Registry') {
 			when {
 				expression { return env.BUILD_RESULT_SUCCESS == 'true'}
@@ -143,24 +203,6 @@ pipeline {
 				}
 			}
 		}
-			// steps {
-			// 	script {
-			// 		echo "==== Pushing Docker Image to Registry ===="
-			// 		// try {
-			// 		// 	pushToRegistry(
-			// 		// 		imageName: env.IMAGE_NAME,
-			// 		// 		imageTag: env.IMAGE_TAG,
-			// 		// 		registryType: 'dockerhub',
-			// 		// 		credentialsId: env.REGISTRY_CREDENTIALS_ID
-			// 		// 	)
-			// 		// 	echo "✅ Image pushed to registry successfully"
-			// 		// } catch (Exception e) {
-			// 		// 	echo "❌ Failed to push image: ${e.getMessage()}"
-			// 		// 	error("Stopping pipeline because push to registry failed")
-			// 		// }
-
-					
-			// 	}
 	}
 
 		post {
