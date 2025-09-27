@@ -74,6 +74,10 @@ pipeline {
 					def javaHome = tool name: 'jdk-21', type: 'jdk'
 					def mavenHome = tool name: 'maven', type: 'maven'
 					
+					// Debug: Print tool paths
+					echo "Java Home from tool: ${javaHome}"
+					echo "Maven Home from tool: ${mavenHome}"
+					
 					// Set environment variables for this stage
 					withEnv(["JAVA_HOME=${javaHome}", "PATH=${javaHome}/bin:${mavenHome}/bin:${env.PATH}"]) {
 						withSonarQubeEnv('SonarQubeServer') {
