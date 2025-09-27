@@ -57,10 +57,15 @@ pipeline {
 				}
 			}
 		}
+		
 		stage('SonarQube Analysis') {
-			def mvn = tool 'maven';
-			withSonarQubeEnv() {
-				sh "${mvn}/bin/mvn clean verify sonar:sonar -Dsonar.projectKey=todoAPI -Dsonar.projectName='todoAPI'"
+			steps {
+				script {
+					def mvn = tool 'maven' // Ensure Maven is installed on the Jenkins agent and configured in Jenkins global tools
+					withSonarQubeEnv() {
+						sh "${mvn}/bin/mvn clean verify sonar:sonar -Dsonar.projectKey=todoAPI -Dsonar.projectName='todoAPI'"
+					}
+				}
 			}
 		}
 		stage ('Build Application') {
