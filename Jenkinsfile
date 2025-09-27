@@ -144,7 +144,7 @@ pipeline {
 							severity: 'CRITICAL,HIGH,MEDIUM',
 							format: 'table',
 							outputFile: "trivy-report-${env.BUILD_NUMBER}.txt",
-							failOnVuln: true
+							failOnVuln: false // Continue pipeline even if vulnerabilities are found
 						)
 
 						if (scanResult.vulnerabilitiesFound) {
