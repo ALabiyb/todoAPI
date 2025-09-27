@@ -161,7 +161,8 @@ pipeline {
 									BUILD_URL: env.BUILD_URL,
 									BUILD_STATUS: "VULNERABILITIES_FOUND",
 									IMAGE_NAME: env.BUILT_IMAGE_NAME,
-									TRIVY_REPORT: scanResult.reportFile
+									TRIVY_REPORT: scanResult.report,           // Inline report (optional)
+                                    TRIVY_REPORT_FILE: scanResult.reportFile   // Attachment
 								]
 							])
 
