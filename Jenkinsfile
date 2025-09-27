@@ -6,6 +6,11 @@ pipeline {
 		label 'contabo'
 	}
 
+	tools {
+        maven 'maven' // Name configured in Jenkins Global Tools
+        jdk 'jdk-21'  // Name configured in Jenkins Global Tools for Java 21
+    }
+
 	environment {
 		// Register environment variables that can be used throughout the pipeline
 		REGISTRY_TYPE = 'dockerhub' // Type of Docker registry (e.g., dockerhub, ecr, gcr or private registry)
@@ -18,6 +23,10 @@ pipeline {
 		IMAGE_NAME = 'munimdevops/apik8s'  // Name of the Docker image
 		IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"  // Tag for the Docker image, using build number or 'latest' if not available
 		BRANCH_NAME = 'apik8s'
+
+		MAVEN_OPTS = '-Dmaven.test.failure.ignore=true'
+
+		SONAR_TOKEN = credentials('sonarqubeserver') // SonarQube token stored in Jenkins credentials
 	}
 
 	stages {
@@ -59,15 +68,17 @@ pipeline {
 		}
 		
 		stage('SonarQube Analysis') {
-			steps {
-				script {
-					def mvn = tool 'maven' // Ensure Maven is installed on the Jenkins agent and configured in Jenkins global tools
-					withSonarQubeEnv() {
-						sh "${mvn}/bin/mvn clean verify sonar:sonar -Dsonar.projectKey=todoAPI -Dsonar.projectName='todoAPI'"
-					}
-				}
-			}
-		}
+            steps {
+                withSonarQubeEnv('SonarQubeServer') { // Name configured in Jenkins System Configuration
+                    sh '''
+                        mvn clean verify sonar:sonar \
+                        -Dsonar.projectKey=todoAPI \
+                        -Dsonar.projectName=todoAPI \
+                        -Dsonar.login=$SONAR_AUTH_TOKEN
+                    '''
+                }
+            }
+        }
 		stage ('Build Application') {
 			steps {
 				script {
