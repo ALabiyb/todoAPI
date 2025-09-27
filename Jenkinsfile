@@ -70,34 +70,29 @@ pipeline {
 		stage('SonarQube Analysis') {
 			steps {
 				script {
-					// Use the exact path that works on your system
-					def javaHome = "/usr/lib/jvm/java-21-openjdk-amd64"
-					def mavenHome = tool name: 'maven', type: 'maven'
-					
-					withEnv([
-						"JAVA_HOME=${javaHome}", 
-						"PATH=${javaHome}/bin:${mavenHome}/bin:${env.PATH}"
-					]) {
-						withSonarQubeEnv('SonarQubeServer') {
-							sh '''
-								echo "=== Verifying Java Tools ==="
-								echo "JAVA_HOME: $JAVA_HOME"
-								which java
-								which javac
-								which mvn
-								java -version
-								javac -version
-								mvn -version
-								
-								echo "=== Starting Clean Build and SonarQube Analysis ==="
-								mvn clean compile sonar:sonar \
-								-Dsonar.projectKey=todoAPI \
-								-Dsonar.projectName=todoAPI \
-								-Dmaven.compiler.fork=true \
-								-Dmaven.compiler.executable=${JAVA_HOME}/bin/javac
-							'''
-						}
-					}
+					def sonarResult = sonarQubeAnalysis([
+						projectKey: 'todoAPI',
+						projectName: 'TodoAPI Application',
+						javaHome: '/usr/lib/jvm/java-21-openjdk-amd64',
+					])
+
+					env.SONA_ANALYSIS_SUCCESS = sonarResult.success.toString()
+				}
+			}
+		}
+
+		// Add Quality Gate stage
+		stage('Quality Gate') {
+			when {
+				expression { return env.SONAR_ANALYSIS_SUCCESS == 'true' }
+			}
+			steps {
+				script {
+					sonarQubeAnalysis.qualityGate([
+						abortPipeline: false,
+						sendNotification: true,
+						notificationRecipients: 'munimdevops1111@gmail.com'
+					])
 				}
 			}
 		}
