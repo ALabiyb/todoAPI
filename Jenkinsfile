@@ -70,16 +70,8 @@ pipeline {
 		stage('SonarQube Analysis') {
 			steps {
 				script {
-					// Explicitly set Java and Maven paths
-					def javaHome = tool name: 'jdk-21', type: 'jdk'
-					def mavenHome = tool name: 'maven', type: 'maven'
-					
-					// Debug: Print tool paths
-					echo "Java Home from tool: ${javaHome}"
-					echo "Maven Home from tool: ${mavenHome}"
-					
-					// Set environment variables for this stage
-					withEnv(["JAVA_HOME=${javaHome}", "PATH=${javaHome}/bin:${mavenHome}/bin:${env.PATH}"]) {
+					// Since your output shows Java 21 is at /usr/lib/jvm/java-21-openjdk-amd64
+					withEnv(["JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64", "PATH=/usr/lib/jvm/java-21-openjdk-amd64/bin:${env.PATH}"]) {
 						withSonarQubeEnv('SonarQubeServer') {
 							sh '''
 								echo "=== Java and Maven Versions ==="
@@ -90,14 +82,14 @@ pipeline {
 								echo "=== Starting SonarQube Analysis ==="
 								mvn clean verify sonar:sonar \
 								-Dsonar.projectKey=todoAPI \
-								-Dsonar.projectName=todoAPI \
-								-Djava.version=21
+								-Dsonar.projectName=todoAPI
 							'''
 						}
 					}
 				}
 			}
 		}
+		
 		stage ('Build Application') {
 			steps {
 				script {
