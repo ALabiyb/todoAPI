@@ -70,19 +70,31 @@ pipeline {
 		stage('SonarQube Analysis') {
 			steps {
 				script {
-					// Since your output shows Java 21 is at /usr/lib/jvm/java-21-openjdk-amd64
-					withEnv(["JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64", "PATH=/usr/lib/jvm/java-21-openjdk-amd64/bin:${env.PATH}"]) {
+					// Use the exact path that works on your system
+					def javaHome = "/usr/lib/jvm/java-21-openjdk-amd64"
+					def mavenHome = tool name: 'maven', type: 'maven'
+					
+					withEnv([
+						"JAVA_HOME=${javaHome}", 
+						"PATH=${javaHome}/bin:${mavenHome}/bin:${env.PATH}"
+					]) {
 						withSonarQubeEnv('SonarQubeServer') {
 							sh '''
-								echo "=== Java and Maven Versions ==="
-								java -version
-								mvn -version
+								echo "=== Verifying Java Tools ==="
 								echo "JAVA_HOME: $JAVA_HOME"
+								which java
+								which javac
+								which mvn
+								java -version
+								javac -version
+								mvn -version
 								
-								echo "=== Starting SonarQube Analysis ==="
-								mvn clean verify sonar:sonar \
+								echo "=== Starting Clean Build and SonarQube Analysis ==="
+								mvn clean compile sonar:sonar \
 								-Dsonar.projectKey=todoAPI \
-								-Dsonar.projectName=todoAPI
+								-Dsonar.projectName=todoAPI \
+								-Dmaven.compiler.fork=true \
+								-Dmaven.compiler.executable=${JAVA_HOME}/bin/javac
 							'''
 						}
 					}
