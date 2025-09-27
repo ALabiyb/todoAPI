@@ -68,17 +68,32 @@ pipeline {
 		}
 		
 		stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('SonarQubeServer') { // Name configured in Jenkins System Configuration
-                    sh '''
-                        mvn clean verify sonar:sonar \
-                        -Dsonar.projectKey=todoAPI \
-                        -Dsonar.projectName=todoAPI \
-                        -Dsonar.login=$SONAR_AUTH_TOKEN
-                    '''
-                }
-            }
-        }
+			steps {
+				script {
+					// Explicitly set Java and Maven paths
+					def javaHome = tool name: 'jdk-21', type: 'jdk'
+					def mavenHome = tool name: 'maven', type: 'maven'
+					
+					// Set environment variables for this stage
+					withEnv(["JAVA_HOME=${javaHome}", "PATH=${javaHome}/bin:${mavenHome}/bin:${env.PATH}"]) {
+						withSonarQubeEnv('SonarQubeServer') {
+							sh '''
+								echo "=== Java and Maven Versions ==="
+								java -version
+								mvn -version
+								echo "JAVA_HOME: $JAVA_HOME"
+								
+								echo "=== Starting SonarQube Analysis ==="
+								mvn clean verify sonar:sonar \
+								-Dsonar.projectKey=todoAPI \
+								-Dsonar.projectName=todoAPI \
+								-Djava.version=21
+							'''
+						}
+					}
+				}
+			}
+		}
 		stage ('Build Application') {
 			steps {
 				script {
