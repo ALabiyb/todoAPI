@@ -76,7 +76,7 @@ pipeline {
 						javaHome: '/usr/lib/jvm/java-21-openjdk-amd64',
 					])
 
-					env.SONA_ANALYSIS_SUCCESS = sonarResult.success.toString()
+					env.SONAR_ANALYSIS_SUCCESS = sonarResult.success.toString()
 				}
 			}
 		}
@@ -201,7 +201,7 @@ pipeline {
 									BUILD_URL: env.BUILD_URL,
 									BUILD_STATUS: "VULNERABILITIES_FOUND",
 									IMAGE_NAME: env.BUILT_IMAGE_NAME,
-									TRIVY_REPORT: scanResult.report,           // Inline report (optional)
+									TRIVY_SCAN_RESULT: scanResult.report,           // Inline report (optional)
                                     TRIVY_REPORT_FILE: scanResult.reportFile   // Attachment
 								]
 							])
