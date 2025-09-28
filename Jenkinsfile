@@ -88,7 +88,7 @@ pipeline {
 			}
 			steps {
 				script {
-					sonarQubeAnalysis.qualityGate([
+					qualityGate([
 						abortPipeline: false,
 						sendNotification: true,
 						notificationRecipients: 'munimdevops1111@gmail.com'
