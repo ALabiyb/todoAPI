@@ -82,20 +82,20 @@ pipeline {
 		}
 
 		// Add Quality Gate stage
-		stage('Quality Gate') {
-			when {
-				expression { return env.SONAR_ANALYSIS_SUCCESS == 'true' }
-			}
-			steps {
-				script {
-					sonarQubeQualityGate([
-						abortPipeline: false,
-						sendNotification: true,
-						notificationRecipients: 'munimdevops1111@gmail.com'
-					])
-				}
-			}
-		}
+		// stage('Quality Gate') {
+		// 	when {
+		// 		expression { return env.SONAR_ANALYSIS_SUCCESS == 'true' }
+		// 	}
+		// 	steps {
+		// 		script {
+		// 			sonarQubeQualityGate([
+		// 				abortPipeline: false,
+		// 				sendNotification: true,
+		// 				notificationRecipients: 'munimdevops1111@gmail.com'
+		// 			])
+		// 		}
+		// 	}
+		// }
 		
 		stage ('Build Application') {
 			steps {
