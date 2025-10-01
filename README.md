@@ -1,93 +1,111 @@
-# api
+# Task Management API
 
+This is a comprehensive task management API built with Spring Boot. It allows users to create, retrieve, update, and delete tasks, as well as manage task priorities and completion status. The application is designed to be containerized with Docker and deployed to a Kubernetes cluster, with a CI/CD pipeline managed by Jenkins.
 
+## Features
 
-## Getting started
+*   **CRUD Operations:** Create, Read, Update, and Delete tasks.
+*   **Priority Management:** Assign priority levels to tasks (e.g., URGENT, HIGH, MEDIUM, LOW).
+*   **Completion Tracking:** Mark tasks as completed or pending.
+*   **Filtering and Sorting:** Retrieve tasks based on priority, completion status, or creation date.
+*   **API Documentation:** Interactive API documentation with Swagger UI.
+*   **Containerization:** Docker support for easy deployment and scaling.
+*   **CI/CD:** Jenkins pipeline for continuous integration and deployment.
+*   **Kubernetes Deployment:** A full set of manifests for a production-ready Kubernetes deployment.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Technologies Used
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+*   **Backend:** Spring Boot, Spring Data JPA, Spring Web
+*   **Database:** PostgreSQL
+*   **Build Tool:** Maven
+*   **API Documentation:** Springdoc OpenAPI (Swagger UI)
+*   **Containerization:** Docker
+*   **CI/CD:** Jenkins
+*   **Orchestration:** Kubernetes
 
-## Add your files
+## Prerequisites
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+*   Java 21 or later
+*   Maven 3.6 or later
+*   Docker
+*   `kubectl`
+*   An Ingress controller (like NGINX Ingress Controller) installed in your Kubernetes cluster.
 
-```
-cd existing_repo
-git remote add origin http://192.168.15.85/softcms/frontend/api/api.git
-git branch -M main
-git push -uf origin main
-```
+## Getting Started (Local Development)
 
-## Integrate with your tools
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/your-username/apik8s.git
+    cd apik8s
+    ```
 
-- [ ] [Set up project integrations](http://192.168.15.85/softcms/frontend/api/api/-/settings/integrations)
+2.  **Configure the database:**
+    For local development, open `src/main/resources/application.properties` and update the following properties to match your PostgreSQL configuration:
+    ```properties
+    spring.datasource.url=jdbc:postgresql://localhost:5432/your-database
+    spring.datasource.username=your-username
+    spring.datasource.password=your-password
+    ```
 
-## Collaborate with your team
+3.  **Build and run the application:**
+    ```bash
+    mvn spring-boot:run
+    ```
+    The application will be available at `http://localhost:8080`.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+## API Documentation
 
-## Test and Deploy
+The API documentation is available at `http://localhost:8080/swagger-ui.html` when running locally.
 
-Use the built-in continuous integration in GitLab.
+## Docker Support
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+1.  **Build the Docker image:**
+    ```bash
+    docker build -t abdulmunim/apik8s:latest .
+    ```
 
-***
+2.  **Run the Docker container:**
+    ```bash
+    docker run -p 8080:8080 -e SPRING_DATASOURCE_URL=jdbc:postgresql://your-host:5432/your-database -e SPRING_DATASOURCE_USERNAME=your-username -e SPRING_DATASOURCE_PASSWORD=your-password abdulmunim/apik8s:latest
+    ```
 
-# Editing this README
+## Kubernetes Deployment
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+The `Manifest` directory contains a full set of Kubernetes manifests for a production-ready deployment. This setup emphasizes security, high availability, and best practices.
 
-## Suggestions for a good README
+### Manifest Overview
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+*   **`task.yaml` (Deployment):** Deploys the application with a security context that runs the container as a non-root user with a read-only filesystem. It also defines resource requests and limits and sources its configuration from a `ConfigMap` and `Secret`.
+*   **`service.yaml` (Service):** Exposes the application within the cluster using a `ClusterIP` service.
+*   **`configmap.yaml` (ConfigMap):** Externalizes non-sensitive configuration, such as the database URL.
+*   **`secret.yaml` (Secret):** Securely stores sensitive data, like database credentials. **You must create this secret manually.**
+*   **`ingress.yaml` (Ingress):** Manages external access to the application, providing an entry point for users and other services.
+*   **`hpa.yaml` (HorizontalPodAutoscaler):** Automatically scales the number of pods based on CPU utilization.
+*   **`network-policy.yaml` (NetworkPolicy):** Restricts ingress traffic to the application, only allowing connections from the Ingress controller.
+*   **`pod-disruption-budget.yaml` (PodDisruptionBudget):** Ensures a minimum number of replicas are available during voluntary disruptions.
 
-## Name
-Choose a self-explaining name for your project.
+### Deployment Steps
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+1.  **Create the Secret:**
+    Before applying the manifests, you must create the `api-secret` with your base64-encoded database credentials. Update the `secret.yaml` file with your encoded credentials, or create the secret directly using `kubectl`:
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+    ```bash
+    kubectl create secret generic api-secret --from-literal=SPRING_DATASOURCE_USERNAME=<your-username> --from-literal=SPRING_DATASOURCE_PASSWORD=<your-password>
+    ```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+2.  **Apply the Manifests:**
+    Apply all the manifests in the `Manifest` directory:
+    ```bash
+    kubectl apply -f Manifest/
+    ```
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+3.  **Access the Application:**
+    Once the Ingress is set up, you can access the application through the Ingress controller's external IP address at the `/api` path.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+## CI/CD Pipeline
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+This project includes a `Jenkinsfile` that defines a CI/CD pipeline with the following stages:
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+1.  **Build:** Compiles the code and runs unit tests.
+2.  **Docker Build & Push:** Builds a Docker image and pushes it to a container registry.
+3.  **Deploy to Kubernetes:** Deploys the application to a Kubernetes cluster.
