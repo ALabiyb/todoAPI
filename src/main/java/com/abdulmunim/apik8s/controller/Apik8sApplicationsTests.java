@@ -1,6 +1,7 @@
-package com.abdulmunim.apik8s;
+package com.abdulmunim.apik8s.controller;
 
 import com.abdulmunim.apik8s.model.Priority;
+import com.abdulmunim.apik8s.model.Status;
 import com.abdulmunim.apik8s.model.Task;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,7 @@ class Apik8sApplicationTests {
         Task task = new Task();
         task.setTitle("Integration Test Task");
         task.setDescription("Testing full integration");
-        task.setCompleted(false);
+        task.setStatus(Status.PENDING);
         task.setPriority(Priority.HIGH);
 
         mockMvc.perform(post("/api/tasks")

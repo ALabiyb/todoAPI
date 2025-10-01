@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-configmap
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://your-database-host:5432/your-db
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "update"

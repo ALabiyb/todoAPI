@@ -1,6 +1,7 @@
 package com.abdulmunim.apik8s.controller;
 
 import com.abdulmunim.apik8s.model.Priority;
+import com.abdulmunim.apik8s.model.Status;
 import com.abdulmunim.apik8s.model.Task;
 import com.abdulmunim.apik8s.repository.TaskRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,10 +12,10 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 import java.util.Arrays;
 import java.util.Optional;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -40,7 +41,8 @@ class TaskControllerTest {
         testTask.setId(1L);
         testTask.setTitle("Test Task");
         testTask.setDescription("Test Description");
-        testTask.setCompleted(false);
+        // ✅ Use status instead of completed
+        testTask.setStatus(Status.PENDING);
         testTask.setPriority(Priority.HIGH);
     }
 
@@ -53,7 +55,8 @@ class TaskControllerTest {
                         .content(objectMapper.writeValueAsString(testTask)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.title").value("Test Task"))
-                .andExpect(jsonPath("$.priority").value("HIGH"));
+                .andExpect(jsonPath("$.priority").value("HIGH"))
+                .andExpect(jsonPath("$.status").value("PENDING")); // ✅ Verify status
 
         verify(taskRepository).save(any(Task.class));
     }
@@ -64,7 +67,8 @@ class TaskControllerTest {
 
         mockMvc.perform(get("/api/tasks"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].title").value("Test Task"));
+                .andExpect(jsonPath("$[0].title").value("Test Task"))
+                .andExpect(jsonPath("$[0].status").value("PENDING"));
 
         verify(taskRepository).findAll();
     }
@@ -75,7 +79,8 @@ class TaskControllerTest {
 
         mockMvc.perform(get("/api/tasks/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.title").value("Test Task"));
+                .andExpect(jsonPath("$.title").value("Test Task"))
+                .andExpect(jsonPath("$.status").value("PENDING"));
 
         verify(taskRepository).findById(1L);
     }
@@ -85,6 +90,7 @@ class TaskControllerTest {
         Task updatedTask = new Task();
         updatedTask.setTitle("Updated Task");
         updatedTask.setPriority(Priority.MEDIUM);
+        updatedTask.setStatus(Status.IN_PROGRESS); // ✅ Include status in update
 
         when(taskRepository.findById(1L)).thenReturn(Optional.of(testTask));
         when(taskRepository.save(any(Task.class))).thenReturn(testTask);
@@ -92,7 +98,8 @@ class TaskControllerTest {
         mockMvc.perform(put("/api/tasks/1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updatedTask)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
 
         verify(taskRepository).findById(1L);
         verify(taskRepository).save(any(Task.class));

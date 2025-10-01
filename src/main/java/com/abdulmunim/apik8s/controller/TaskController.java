@@ -1,6 +1,7 @@
 package com.abdulmunim.apik8s.controller;
 
 import com.abdulmunim.apik8s.model.Priority;
+import com.abdulmunim.apik8s.model.Status;
 import com.abdulmunim.apik8s.model.Task;
 import com.abdulmunim.apik8s.repository.TaskRepository;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -19,10 +20,14 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 @RestController
 @RequestMapping("/api/tasks")
-@CrossOrigin(origins = "*")
+@CrossOrigin(
+        origins = {"http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:8080", "*"},
+        methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS},
+        allowedHeaders = {"*"},
+        allowCredentials = "false"
+)
 @Tag(name="Task Management", description = "API for managing tasks with priorities")
 public class TaskController {
 
@@ -31,31 +36,29 @@ public class TaskController {
     @Autowired
     private TaskRepository taskRepository;
 
-
     @Operation(
             summary = "Create a new task",
             description = "Creates a new task with title, description, completion status and priority level"
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Task created successfully",
-            content = @Content(schema = @Schema(implementation = Task.class))),
+                    content = @Content(schema = @Schema(implementation = Task.class))),
             @ApiResponse(responseCode = "400", description = "Invalid input data"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-
-    // UPDATED: Create a new Task with debugging
     @PostMapping
     public ResponseEntity<Task> createTask(
-
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "Task object to created",
+                    description = "Task object to be created",
                     required = true,
                     content = @Content(schema = @Schema(implementation = Task.class))
             )
             @Valid @RequestBody Task task) {
+
         logger.info("POST /api/tasks - Creating new task");
         logger.debug("Request body - Title: '{}', Description: '{}', Priority: {}, Completed: {}",
-                task.getTitle(), task.getDescription(), task.getPriority(), task.getCompleted());
+                task.getTitle(), task.getDescription(), task.getPriority(), task.getStatus());
+
         try {
             // Ensure it's treated as a new entity (ID should be null for creation)
             if (task.getId() != null) {
@@ -68,30 +71,32 @@ public class TaskController {
                 logger.debug("Priority is null, setting default to LOW");
                 task.setPriority(Priority.LOW);
             }
-            if (task.getCompleted() == null) {
-                logger.debug("Completed is null, setting default to false");
-                task.setCompleted(false);
+//            if (task.getCompleted() == null) {
+//                logger.debug("Completed is null, setting default to false");
+//                task.setCompleted(false);
+//            }
+
+            if (task.getStatus() == null) {
+                logger.debug("Status is null, setting default to PENDING");
+                task.setStatus(Status.PENDING);
             }
 
-            // Force it to be treated as new entity
-//            task.setId(null);
             logger.debug("Saving task to database...");
-
             Task savedTask = taskRepository.save(task);
 
             logger.info("Task created successfully - ID: {}, Title: '{}', Priority: {}",
                     savedTask.getId(), savedTask.getTitle(), savedTask.getPriority());
+
             return ResponseEntity.status(HttpStatus.CREATED).body(savedTask);
 
         } catch (Exception e) {
             logger.error("Error creating task: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     @Operation(summary = "Get all tasks", description = "Retrieve all tasks from the database")
-    @ApiResponse(responseCode = "200",description = "Successfully retrived all tasks")
-    // Keep all your existing methods exactly the same
+    @ApiResponse(responseCode = "200", description = "Successfully retrieved all tasks")
     @GetMapping
     public ResponseEntity<List<Task>> getAllTasks() {
         logger.info("GET /api/tasks - Retrieving all tasks");
@@ -143,9 +148,10 @@ public class TaskController {
             @Parameter(description = "ID of the task to update", required = true)
             @PathVariable(value = "id") Long taskId,
             @Valid @RequestBody Task taskDetails) {
+
         logger.info("PUT /api/tasks/{} - Updating task", taskId);
-        logger.debug("Update data - Title: '{}', Priority: {}, Completed: {}",
-                taskDetails.getTitle(), taskDetails.getPriority(), taskDetails.getCompleted());
+        logger.debug("Update data - Title: '{}', Priority: {}, Status: {}",
+                taskDetails.getTitle(), taskDetails.getPriority(), taskDetails.getStatus());
 
         try {
             return taskRepository.findById(taskId)
@@ -154,8 +160,11 @@ public class TaskController {
 
                         task.setTitle(taskDetails.getTitle());
                         task.setDescription(taskDetails.getDescription());
-                        task.setCompleted(taskDetails.getCompleted());
+//                        task.setCompleted(taskDetails.getCompleted());
                         task.setPriority(taskDetails.getPriority());
+                        if (taskDetails.getStatus() != null) {
+                            task.setStatus(taskDetails.getStatus());
+                        }
 
                         Task updatedTask = taskRepository.save(task);
                         logger.info("Task updated successfully - ID: {}, Title: '{}'",
@@ -182,6 +191,7 @@ public class TaskController {
     public ResponseEntity<Void> deleteTask(
             @Parameter(description = "ID of the task to delete", required = true)
             @PathVariable(value = "id") Long taskId) {
+
         logger.info("DELETE /api/tasks/{} - Deleting task", taskId);
         try {
             return taskRepository.findById(taskId)
@@ -201,13 +211,12 @@ public class TaskController {
         }
     }
 
-
-    // Get tasks by priority
     @Operation(summary = "Get tasks by priority", description = "Retrieves all tasks with a specific priority level")
     @GetMapping("/priority/{priority}")
     public ResponseEntity<List<Task>> getTasksByPriority(
             @Parameter(description = "Priority level to filter by", required = true)
             @PathVariable Priority priority) {
+
         logger.info("GET /api/tasks/priority/{} - Retrieving tasks by priority", priority);
         try {
             List<Task> tasks = taskRepository.findByPriority(priority);
@@ -219,7 +228,6 @@ public class TaskController {
         }
     }
 
-    // Get tasks ordered by priority
     @Operation(summary = "Get tasks sorted by priority", description = "Retrieves all tasks ordered by priority (highest first)")
     @GetMapping("/sorted")
     public ResponseEntity<List<Task>> getTasksSortedByPriority() {
@@ -239,7 +247,7 @@ public class TaskController {
     public ResponseEntity<List<Task>> getCompletedTasks() {
         logger.info("GET /api/tasks/completed - Retrieving completed tasks");
         try {
-            List<Task> tasks = taskRepository.findByCompleted(true);
+            List<Task> tasks = taskRepository.findByStatus(Status.COMPLETED);
             logger.info("Found {} completed tasks", tasks.size());
             return ResponseEntity.ok(tasks);
         } catch (Exception e) {
@@ -253,7 +261,7 @@ public class TaskController {
     public ResponseEntity<List<Task>> getPendingTasks() {
         logger.info("GET /api/tasks/pending - Retrieving pending tasks");
         try {
-            List<Task> tasks = taskRepository.findByCompleted(false);
+            List<Task> tasks = taskRepository.findByStatus(Status.PENDING);
             logger.info("Found {} pending tasks", tasks.size());
             return ResponseEntity.ok(tasks);
         } catch (Exception e) {

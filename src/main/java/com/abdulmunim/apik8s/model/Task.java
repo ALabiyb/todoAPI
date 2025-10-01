@@ -23,8 +23,8 @@ public class Task {
 
     private String description;
 
-    @Column(nullable = false)
-    private Boolean completed = false;
+//    @Column(nullable = false)
+//    private Boolean completed = false;
 
     @Column(name= "created_at")
     @JsonProperty(access = JsonProperty.Access.READ_ONLY) // ADD THIS LINE TOO
@@ -33,6 +33,9 @@ public class Task {
     @Enumerated(EnumType.STRING)
     @Column(name = "priority", nullable = false)
     private Priority priority = Priority.LOW;
+
+    @Enumerated(EnumType.STRING)
+    private Status status = Status.PENDING;
 
     @PrePersist
     protected void onCreate() {
@@ -80,8 +83,8 @@ public class Task {
     }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
-    public Boolean getCompleted() { return completed; }
-    public void setCompleted(Boolean completed) { this.completed = completed; }
+//    public Boolean getCompleted() { return completed; }
+//    public void setCompleted(Boolean completed) { this.completed = completed; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
@@ -98,9 +101,18 @@ public class Task {
 //        this.priority = priority;
     }
 
+    public Status getStatus() {
+        return status;
+    }
+
+    public void setStatus(Status status) {
+        this.status = status;
+    }
+
+
     @Override
     public String toString() {
-        return String.format("Task{id=%d, title='%s', description='%s', completed=%s, createdAt=%s, priority=%s}",
-                id, title, description, completed, createdAt, priority);
+        return String.format("Task{id=%d, title='%s', description='%s', status=%s, createdAt=%s, priority=%s}",
+                id, title, description, status, createdAt, priority);
     }
 }

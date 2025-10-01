@@ -17,11 +17,21 @@ spec:
     spec:
       containers:
         - name: api-deploy
-          image: nginx
+          image: abdulmunim/apik8s:latest
           imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 3000
+            readOnlyRootFilesystem: true
           ports:
             - containerPort: 8080
               protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: api-configmap
+            - secretRef:
+                name: api-secret
           resources:
             requests:
               memory: "512Mi"
@@ -35,11 +45,12 @@ spec:
               path: /api/tasks
             initialDelaySeconds: 30
             periodSeconds: 5
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               port: 8080
               path: /api/tasks
             initialDelaySeconds: 60
             periodSeconds: 10
+            failureThreshold: 3
       restartPolicy: Always
-      
